@@ -212,14 +212,14 @@ Context `{KuratowskiAxioms}.
 Global Instance ClosureOperator_closed : ClosedSets X :=
 fun F:Ensemble X => cl F = F.
 
-Instance cl_increasing : Proper (Included ++> Included) cl.
+Global Instance cl_increasing : Proper (Included ++> Included) cl.
 Proof.
 intros S1 S2 ?. replace S2 with (S1 ∪ S2).
 + rewrite cl_respects_union. auto with sets.
 + apply Extensionality_Ensembles; split; auto with sets.
 Qed.
 
-Instance ClosureFormsTopology : ClosedSetsFormTopology X.
+Global Instance ClosureFormsTopology : ClosedSetsFormTopology X.
 Proof.
 constructor; unfold closed_def, ClosureOperator_closed.
 + apply cl_empty.
