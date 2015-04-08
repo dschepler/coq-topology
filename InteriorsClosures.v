@@ -1,365 +1,245 @@
 Require Export TopologicalSpaces.
 Require Export EnsemblesSpec.
+Require Import EnsemblesUtf8.
+Require Import Morphisms.
+Require Import RelationClasses.
+Require Import Complement_facts.
+Require Import EnsemblesInstances.
+
+Generalizable All Variables.
 
 Section interior_closure.
 
-Variable X:TopologicalSpace.
-Variable S:Ensemble (point_set X).
+Context `{TopologicalSpace X}.
+Variable S : Ensemble X.
 
-Definition interior := FamilyUnion
-  [ U:Ensemble (point_set X) | open U /\ Included U S ].
-Definition closure := FamilyIntersection
-  [ F:Ensemble (point_set X) | closed F /\ Included S F ].
+Definition interior :=
+  ⋃ ( [ U:Ensemble X | open U ∧ U ⊆ S ] ).
+Definition closure :=
+  ⋂ ( [ F:Ensemble X | closed F ∧ S ⊆ F ] ).
 
 Lemma interior_open : open interior.
 Proof.
 apply open_family_union.
 intros.
-destruct H as [[]]; trivial.
+destruct H1 as [ [] ]; trivial.
 Qed.
 
-Lemma interior_deflationary : Included interior S.
+Lemma interior_deflationary : interior ⊆ S.
 Proof.
-red; intros.
-destruct H.
-destruct H as [[]]; auto with sets.
+apply FamilyUnion_minimal. intros. destruct H1 as [ [] ]; trivial.
 Qed.
 
-Lemma interior_fixes_open: open S -> interior = S.
+Lemma interior_fixes_open: open S → interior = S.
 Proof.
 intros.
 apply Extensionality_Ensembles; split.
-apply interior_deflationary.
-red; intros.
-exists S; trivial.
-constructor; auto with sets.
++ apply interior_deflationary.
++ apply FamilyUnion_vee. constructor; split.
+  - assumption.
+  - reflexivity.
 Qed.
 
-Lemma interior_maximal: forall U:Ensemble (point_set X),
-  open U -> Included U S -> Included U interior.
+Lemma interior_maximal : forall U:Ensemble X,
+  open U → U ⊆ S → U ⊆ interior.
 Proof.
-intros.
-red; intros.
-exists U; trivial.
-constructor; split; trivial.
+intros. apply FamilyUnion_vee. constructor; split; trivial.
 Qed.
 
 Lemma closure_closed : closed closure.
 Proof.
-apply closed_family_intersection.
-intros.
-destruct H as [[]]; trivial.
+apply closed_family_intersection; trivial. intros.
+destruct H1 as [ [] ]; trivial.
 Qed.
 
-Lemma closure_inflationary : Included S closure.
+Lemma closure_inflationary : S ⊆ closure.
 Proof.
-red; intros.
-constructor; intros.
-destruct H0 as [[]].
-auto with sets.
+apply FamilyIntersection_maximal. intros. destruct H1 as [ [] ].
+trivial.
 Qed.
 
-Lemma closure_fixes_closed : closed S -> closure = S.
+Lemma closure_fixes_closed : closed S → closure = S.
 Proof.
 intro.
 apply Extensionality_Ensembles; split.
-red; intros.
-destruct H0.
-apply H0; split; auto with sets.
-apply closure_inflationary.
++ apply FamilyIntersection_wedge. constructor; split.
+  - assumption.
+  - reflexivity.
++ apply closure_inflationary.
 Qed.
 
-Lemma closure_minimal: forall F:Ensemble (point_set X),
-  closed F -> Included S F -> Included closure F.
+Lemma closure_minimal : forall F:Ensemble X,
+  closed F → S ⊆ F → closure ⊆ F.
 Proof.
-intros; red; intros.
-destruct H1.
-apply H1.
+intros. apply FamilyIntersection_wedge.
 constructor; split; trivial.
+Qed.
+
+Lemma closure_equiv_meets_every_open_neighborhood :
+  ∀ x : X, x ∈ closure ↔
+           ∀ U : Ensemble X, open U → x ∈ U →
+                                    Inhabited (S ∩ U).
+Proof.
+split; intros.
++ apply NNPP; intro. assert (closure ⊆ Complement U).
+  - apply closure_minimal.
+    * red. rewrite Complement_Complement. trivial.
+    * red; intros y ?. intro. contradict H4. exists y. auto with sets.
+  - apply H5 in H1. contradiction.
++ constructor. intros F ?. destruct H2 as [ [] ].
+  apply NNPP; intro. change (x ∈ Complement F) in H4.
+  pose proof (H1 _ H2 H4). destruct H5 as [y [] ]. auto.
+Qed.
+
+Definition dense : Prop :=
+  closure = Full_set.
+
+Lemma dense_equiv_meets_every_nonempty_open :
+  dense ↔ ∀ U : Ensemble X, open U → Inhabited U → Inhabited (S ∩ U).
+Proof.
+split; intros.
++ destruct H3. assert (x ∈ closure).
+  - rewrite H1. constructor.
+  - rewrite closure_equiv_meets_every_open_neighborhood in H4.
+    auto.
++ red. apply Extensionality_Ensembles; split; red; intros.
+  - constructor.
+  - rewrite closure_equiv_meets_every_open_neighborhood. intros.
+    apply H1; trivial. exists x; trivial.
 Qed.
 
 End interior_closure.
 
-Implicit Arguments interior [[X]].
-Implicit Arguments closure [[X]].
-Implicit Arguments interior_open [[X]].
-Implicit Arguments interior_deflationary [[X]].
-Implicit Arguments interior_fixes_open [[X]].
-Implicit Arguments interior_maximal [[X]].
-Implicit Arguments closure_closed [[X]].
-Implicit Arguments closure_inflationary [[X]].
-Implicit Arguments closure_fixes_closed [[X]].
-Implicit Arguments closure_minimal [[X]].
-
 Section interior_closure_relations.
 
-Variable X:TopologicalSpace.
+Context `{TopologicalSpace X}.
 
-Lemma interior_increasing: forall S T:Ensemble (point_set X),
-  Included S T -> Included (interior S) (interior T).
+Instance interior_increasing : Proper (Included ++> Included) interior.
 Proof.
-intros.
-apply interior_maximal.
-apply interior_open.
-assert (Included (interior S) S).
-apply interior_deflationary.
-auto with sets.
+intros S T ?. apply interior_maximal.
++ apply interior_open.
++ rewrite <- H1. apply interior_deflationary.
 Qed.
 
-Lemma interior_intersection: forall S T:Ensemble (point_set X),
-  interior (Intersection S T) =
-  Intersection (interior S) (interior T).
+Lemma interior_intersection : forall S T : Ensemble X,
+  interior (S ∩ T) = interior S ∩ interior T.
 Proof.
-intros.
-apply Extensionality_Ensembles; split.
-assert (Included (interior (Intersection S T)) (interior S)).
-apply interior_increasing.
-auto with sets.
-assert (Included (interior (Intersection S T)) (interior T)).
-apply interior_increasing.
-auto with sets.
-auto with sets.
-
-apply interior_maximal.
-apply open_intersection2; apply interior_open.
-pose proof (interior_deflationary S).
-pose proof (interior_deflationary T).
-red; intros x H1; constructor; (apply H || apply H0);
-destruct H1; trivial.
+intros. apply Extensionality_Ensembles; split.
++ apply Intersection_maximal; apply interior_increasing; auto with sets.
++ apply interior_maximal.
+  - apply open_intersection2; apply interior_open.
+  - f_equiv; apply interior_deflationary.
 Qed.
 
-Lemma interior_union: forall S T:Ensemble (point_set X),
-  Included (Union (interior S) (interior T))
-           (interior (Union S T)).
+Lemma interior_union : forall S T : Ensemble X,
+  interior S ∪ interior T ⊆ interior (S ∪ T).
 Proof.
-intros.
-apply interior_maximal.
-apply open_union2; apply interior_open.
-pose proof (interior_deflationary S).
-pose proof (interior_deflationary T).
-auto with sets.
+intros. apply interior_maximal.
++ apply open_union2; trivial; apply interior_open.
++ f_equiv; apply interior_deflationary.
 Qed.
 
-Lemma complement_inclusion: forall {Y:Type} (S T:Ensemble Y),
-  Included S T -> Included (Complement T) (Complement S).
-Proof.
-intros.
-red; intros.
-red; intro.
-contradiction H0.
-auto with sets.
-Qed.
-
-Lemma interior_complement: forall S:Ensemble (point_set X),
+Lemma interior_complement : forall S : Ensemble X,
   interior (Complement S) = Complement (closure S).
 Proof.
-intros.
-apply Extensionality_Ensembles; split.
-rewrite <- Complement_Complement with (A:=interior (Complement S)).
-apply complement_inclusion.
-apply closure_minimal.
-red.
-rewrite Complement_Complement.
-apply interior_open.
-pattern S at 1;
-rewrite <- Complement_Complement with (A:=S).
-apply complement_inclusion.
-apply interior_deflationary.
-
-apply interior_maximal.
-apply closure_closed.
-apply complement_inclusion.
-apply closure_inflationary.
+intros. apply Extensionality_Ensembles; split.
++ rewrite <- Complement_Complement with (A:=interior (Complement S)).
+  f_equiv; red. apply closure_minimal.
+  - unfold closed. rewrite Complement_Complement.
+    apply interior_open.
+  - rewrite interior_deflationary. rewrite Complement_Complement.
+    reflexivity.
++ apply interior_maximal.
+  - apply closure_closed.
+  - f_equiv. red. apply closure_inflationary.
 Qed.
 
-Lemma closure_increasing: forall S T:Ensemble (point_set X),
-  Included S T -> Included (closure S) (closure T).
+Instance closure_increasing : Proper (Included ++> Included) closure.
 Proof.
-intros.
-apply closure_minimal.
-apply closure_closed.
-pose proof (closure_inflationary T).
-auto with sets.
+intros S T ?. apply closure_minimal.
++ apply closure_closed.
++ rewrite H1. apply closure_inflationary.
 Qed.
 
-Lemma closure_complement: forall S:Ensemble (point_set X),
+Lemma closure_complement : forall S : Ensemble X,
   closure (Complement S) = Complement (interior S).
 Proof.
-intros.
-pose proof (interior_complement (Complement S)).
-rewrite Complement_Complement in H.
-rewrite H.
-rewrite Complement_Complement; reflexivity.
+intros. apply Extensionality_Ensembles; split.
++ apply closure_minimal.
+  - red. rewrite Complement_Complement. apply interior_open.
+  - f_equiv; red. apply interior_deflationary.
++ rewrite <- Complement_Complement with (A := closure (Complement S)).
+  f_equiv; red. apply interior_maximal.
+  - apply closure_closed.
+  - rewrite <- closure_inflationary. rewrite Complement_Complement.
+    reflexivity.
 Qed.
 
-Lemma closure_union: forall S T:Ensemble (point_set X),
-  closure (Union S T) = Union (closure S) (closure T).
+Lemma closure_union : forall S T : Ensemble X,
+  closure (S ∪ T) = closure S ∪ closure T.
 Proof.
-intros.
-apply Extensionality_Ensembles; split.
-apply closure_minimal.
-apply closed_union2; apply closure_closed.
-pose proof (closure_inflationary S).
-pose proof (closure_inflationary T).
-auto with sets.
-
-assert (Included (closure S) (closure (Union S T))).
-apply closure_increasing; auto with sets.
-assert (Included (closure T) (closure (Union S T))).
-apply closure_increasing; auto with sets.
-auto with sets.
+intros. apply Extensionality_Ensembles; split.
++ apply closure_minimal.
+  - apply closed_union2; trivial; apply closure_closed.
+  - f_equiv; apply closure_inflationary.
++ apply Union_minimal; apply closure_increasing; auto with sets.
 Qed.
 
-Lemma closure_intersection: forall S T:Ensemble (point_set X),
-  Included (closure (Intersection S T))
-           (Intersection (closure S) (closure T)).
+Lemma closure_intersection : forall S T : Ensemble X,
+  closure (S ∩ T) ⊆ closure S ∩ closure T.
 Proof.
-intros.
-assert (Included (closure (Intersection S T)) (closure S)).
-apply closure_increasing; auto with sets.
-assert (Included (closure (Intersection S T)) (closure T)).
-apply closure_increasing; auto with sets.
-auto with sets.
-Qed.
-
-Lemma meets_every_open_neighborhood_impl_closure:
-  forall (S:Ensemble (point_set X)) (x:point_set X),
-  (forall U:Ensemble (point_set X), open U -> In U x ->
-                                Inhabited (Intersection S U)) ->
-  In (closure S) x.
-Proof.
-intros.
-apply NNPP; intro.
-pose proof (H (Complement (closure S))).
-destruct H1.
-apply closure_closed.
-exact H0.
-destruct H1.
-contradiction H2.
-apply closure_inflationary.
-assumption.
-Qed.
-
-Lemma closure_impl_meets_every_open_neighborhood:
-  forall (S:Ensemble (point_set X)) (x:point_set X),
-  In (closure S) x ->
-  forall U:Ensemble (point_set X), open U -> In U x ->
-    Inhabited (Intersection S U).
-Proof.
-intros.
-apply NNPP; intro.
-assert (Included (closure S) (Complement U)).
-apply closure_minimal.
-unfold closed.
-rewrite Complement_Complement; assumption.
-red; intros.
-intro.
-contradiction H2.
-exists x0; constructor; trivial.
-
-contradict H1.
-apply H3.
-assumption.
-Qed.
-
-Definition dense (S:Ensemble (point_set X)) : Prop :=
-  closure S = Full_set.
-
-Lemma dense_meets_every_nonempty_open:
-  forall S:Ensemble (point_set X), dense S ->
-    forall U:Ensemble (point_set X), open U -> Inhabited U ->
-    Inhabited (Intersection S U).
-Proof.
-intros.
-destruct H1.
-apply closure_impl_meets_every_open_neighborhood with x; trivial.
-rewrite H; constructor.
-Qed.
-
-Lemma meets_every_nonempty_open_impl_dense:
-  forall S:Ensemble (point_set X),
-  (forall U:Ensemble (point_set X), open U -> Inhabited U ->
-   Inhabited (Intersection S U)) ->
-  dense S.
-Proof.
-intros.
-apply Extensionality_Ensembles; split; red; intros.
-constructor.
-apply meets_every_open_neighborhood_impl_closure.
-intros.
-apply H; trivial.
-exists x; trivial.
+intros. apply Intersection_maximal; apply closure_increasing; auto with sets.
 Qed.
 
 End interior_closure_relations.
 
-Implicit Arguments interior_increasing [[X]].
-Implicit Arguments interior_intersection [[X]].
-Implicit Arguments interior_union [[X]].
-Implicit Arguments interior_complement [[X]].
-Implicit Arguments closure_increasing [[X]].
-Implicit Arguments closure_complement [[X]].
-Implicit Arguments closure_union [[X]].
-Implicit Arguments closure_intersection [[X]].
-Implicit Arguments dense [[X]].
-
 Section Build_from_closure.
 
-Variable X:Type.
-Variable cl : Ensemble X -> Ensemble X.
-Hypothesis cl_inflationary: forall S:Ensemble X,
-  Included S (cl S).
-Hypothesis cl_respects_union: forall S1 S2:Ensemble X,
-  cl (Union S1 S2) = Union (cl S1) (cl S2).
-Hypothesis cl_empty: cl Empty_set = Empty_set.
-Hypothesis cl_idempotent: forall S:Ensemble X,
-  cl (cl S) = cl S.
+Class ClosureOperator (X:Type) : Type :=
+cl : Ensemble X → Ensemble X.
 
-Lemma cl_increasing: forall S1 S2:Ensemble X,
-  Included S1 S2 -> Included (cl S1) (cl S2).
+Context `{ClosureOperator X}.
+
+Class KuratowskiAxioms : Prop := {
+  cl_inflationary : ∀ S:Ensemble X, S ⊆ cl S;
+  cl_respects_union : ∀ S T:Ensemble X, cl (S ∪ T) = cl S ∪ cl T;
+  cl_empty : cl ∅ = ∅;
+  cl_idempotent : ∀ S:Ensemble X, cl (cl S) = cl S
+}.
+
+Context `{KuratowskiAxioms}.
+
+Global Instance ClosureOperator_closed : ClosedSets X :=
+fun F:Ensemble X => cl F = F.
+
+Instance cl_increasing : Proper (Included ++> Included) cl.
 Proof.
-intros.
-replace S2 with (Union S1 S2).
-rewrite cl_respects_union.
-auto with sets.
-apply Extensionality_Ensembles; split; auto with sets.
+intros S1 S2 ?. replace S2 with (S1 ∪ S2).
++ rewrite cl_respects_union. auto with sets.
++ apply Extensionality_Ensembles; split; auto with sets.
 Qed.
 
-Definition Build_TopologicalSpace_from_closure_operator : TopologicalSpace.
-refine (Build_TopologicalSpace_from_closed_sets
-  (fun F => cl F = F) _ _ _).
-apply cl_empty.
-intros.
-rewrite cl_respects_union; congruence.
-intros.
-apply Extensionality_Ensembles; split; try apply cl_inflationary.
-red; intros.
-constructor; intros.
-rewrite <- (H S H1).
-apply cl_increasing with (FamilyIntersection F); trivial.
-red; intros.
-destruct H2.
-apply H2; trivial.
-Defined.
-
-Lemma Build_TopologicalSpace_from_closure_operator_closure:
-  forall S:Ensemble (point_set Build_TopologicalSpace_from_closure_operator),
-    closure S = cl S.
+Instance ClosureFormsTopology : ClosedSetsFormTopology X.
 Proof.
-intros.
-apply Extensionality_Ensembles; split.
-apply closure_minimal.
-apply <- Build_TopologicalSpace_from_closed_sets_closed.
-apply cl_idempotent.
-trivial.
-replace (closure S) with (cl (closure S)).
-apply cl_increasing.
-apply (closure_inflationary S).
-pose proof (closure_closed S).
-apply -> Build_TopologicalSpace_from_closed_sets_closed in H.
-exact H.
+constructor; unfold closed_def, ClosureOperator_closed.
++ apply cl_empty.
++ intros. rewrite cl_respects_union. rewrite H1, H2; reflexivity.
++ intros. apply Extensionality_Ensembles; split.
+  - apply FamilyIntersection_maximal. intros. rewrite <- (H1 _ H2).
+    apply cl_increasing. apply FamilyIntersection_wedge; trivial.
+  - apply cl_inflationary.
+Qed.
+
+Lemma closure_topology_closure :
+  ∀ S : Ensemble X, closure S = cl S.
+Proof.
+intros. apply Extensionality_Ensembles; split.
++ apply FamilyIntersection_wedge. constructor; split.
+  - rewrite closed_def_closed. do 2 red. apply cl_idempotent.
+  - apply cl_inflationary.
++ apply FamilyIntersection_maximal. intros. destruct H1 as [ [] ].
+  rewrite H2. rewrite closed_def_closed in H1. rewrite H1.
+  reflexivity.
 Qed.
 
 End Build_from_closure.
-
-Implicit Arguments Build_TopologicalSpace_from_closure_operator [[X]].
