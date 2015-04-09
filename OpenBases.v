@@ -128,8 +128,6 @@ constructor.
 + intros. destruct H1. exists U; auto using basic_open_set_def_impl_open.
 Qed.
 
-About BasicOpenSetsFormBasis.
-
 Global Instance BasicOpenPredicateDef_BasicOpenPredicate :
   BasicOpenPredicate X :=
 basic_open_set_def.
