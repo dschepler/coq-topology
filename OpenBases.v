@@ -1,209 +1,144 @@
 Require Export TopologicalSpaces.
 Require Import ClassicalChoice.
 Require Import EnsemblesSpec.
+Require Import EnsemblesUtf8.
+Require Export Neighborhoods.
+Require Import EnsemblesInstances.
+
+Generalizable All Variables.
+
+Section BasicOpenSets.
+
+Class BasicOpenPredicate (X:Type) : Type :=
+basic_open_set : Ensemble X → Prop.
+
+Context `{TopologicalSpace X} `{!BasicOpenPredicate X}.
+
+Inductive nhd_by_basic_open_set (N:Ensemble X) (x:X) : Prop :=
+| intro_nhd_by_basic_open_set : ∀ U:Ensemble X, basic_open_set U →
+  x ∈ U → U ⊆ N → nhd_by_basic_open_set N x.
+
+Class BasicOpenSetsFormBasis : Prop := {
+  open_basis_elements : ∀ U:Ensemble X, basic_open_set U → open U;
+  open_basis_cover : ∀ (x:X) (U:Ensemble X), open U → x ∈ U →
+    nhd_by_basic_open_set U x
+}.
+
+Context `{!BasicOpenSetsFormBasis}.
+
+Lemma open_basis_neighborhood : ∀ (N:Ensemble X) (x:X),
+  neighborhood N x ↔ nhd_by_basic_open_set N x.
+Proof.
+intros; split; destruct 1.
++ destruct (open_basis_cover x U H2 H3). exists U0; auto with sets.
++ exists U; auto using open_basis_elements.
+Qed.
+
+Corollary open_equiv_coverable_by_open_basis :
+  ∀ U:Ensemble X, open U ↔ (∀ x:X, x ∈ U → nhd_by_basic_open_set U x).
+Proof.
+split; intros.
++ rewrite <- open_basis_neighborhood. apply open_neighborhood_is_neighborhood.
+  split; trivial.
++ rewrite open_equiv_neighborhood_of_every_element. intros.
+  rewrite open_basis_neighborhood. auto.
+Qed.
+
+Inductive union_of_basic_open_sets : Ensemble X → Prop :=
+| intro_union_of_basic_open_sets : ∀ F : Family X,
+  (∀ V:Ensemble X, V ∈ F → basic_open_set V) →
+  union_of_basic_open_sets (⋃ F).
+
+Lemma open_equiv_union_of_basic_open_sets :
+  ∀ U:Ensemble X, open U ↔ union_of_basic_open_sets U.
+Proof.
+split; intros.
++ replace U with (⋃ ([ V:Ensemble X | basic_open_set V ∧ V ⊆ U ]) ).
+  - constructor. intros. destruct H3 as [ [] ]; trivial.
+  - apply Extensionality_Ensembles; split.
+    * apply FamilyUnion_minimal. intros. destruct H3 as [ [] ]; trivial.
+    * intros x ?. rewrite open_equiv_coverable_by_open_basis in H2.
+      apply H2 in H3. destruct H3 as [V]. exists V; trivial.
+      constructor; split; trivial.
++ destruct H2. apply open_family_union. auto using open_basis_elements.
+Qed.
+
+End BasicOpenSets.
 
 Section OpenBasis.
 
-Variable X : TopologicalSpace.
-Variable B : Family (point_set X).
+Context `{TopologicalSpace X}.
+Variable B : Family X.
 
-Record open_basis : Prop :=
-  { open_basis_elements :
-     forall V:Ensemble (point_set X), In B V -> open V;
-    open_basis_cover :
-     forall (x:point_set X) (U:Ensemble (point_set X)),
-        open U -> In U x -> exists V:Ensemble (point_set X),
-        In B V /\ Included V U /\ In V x
-  }.
+(* Do not want this to be a global instance! *)
+Instance Basis_BasicOpenPredicate : BasicOpenPredicate X :=
+fun U => U ∈ B.
 
-Hypothesis Hbasis: open_basis.
-
-Lemma coverable_by_open_basis_impl_open:
-  forall U:Ensemble (point_set X),
-    (forall x:point_set X, In U x -> exists V:Ensemble (point_set X),
-     In B V /\ Included V U /\ In V x) -> open U.
-Proof.
-intros.
-assert (U = FamilyUnion [ V:Ensemble (point_set X) |
-                          In B V /\ Included V U ]).
-apply Extensionality_Ensembles; split; red; intros.
-destruct (H x H0) as [V].
-destruct H1 as [? [? ?]].
-exists V; auto.
-constructor; auto.
-destruct H0.
-destruct H0.
-destruct H0.
-auto with sets.
-
-rewrite H0.
-apply open_family_union.
-intros.
-destruct H1.
-destruct H1.
-apply open_basis_elements; trivial.
-Qed.
+Class open_basis : Prop :=
+open_basis_forms_basis :> BasicOpenSetsFormBasis.
 
 End OpenBasis.
 
-Implicit Arguments open_basis [[X]].
-Implicit Arguments coverable_by_open_basis_impl_open [[X]].
-Implicit Arguments open_basis_elements [[X]].
-Implicit Arguments open_basis_cover [[X]].
-
 Section BuildFromOpenBasis.
 
-Variable X : Type.
-Variable B : Family X.
+Class BasicOpenPredicateForTopology (X:Type) : Type :=
+basic_open_set_def : Ensemble X → Prop.
 
-Definition open_basis_cond :=
-  forall U V:Ensemble X, In B U -> In B V ->
-    forall x:X, In (Intersection U V) x ->
-      exists W:Ensemble X, In B W /\ In W x /\
-                           Included W (Intersection U V).
-Definition open_basis_cover_cond :=
-  forall x:X, exists U:Ensemble X, In B U /\ In U x.
+Context `{BasicOpenPredicateForTopology X}.
 
-Hypothesis Hbasis : open_basis_cond.
-Hypothesis Hbasis_cover: open_basis_cover_cond.
+Inductive nhd_by_basic_open_set_def (N : Ensemble X) (x : X) : Prop :=
+| intro_nhd_by_basic_open_set_def : ∀ U : Ensemble X,
+  basic_open_set_def U → x ∈ U → U ⊆ N → nhd_by_basic_open_set_def N x.
 
-Inductive B_open : Ensemble X -> Prop :=
-  | B_open_intro: forall F:Family X, Included F B ->
-    B_open (FamilyUnion F).
+Global Instance BasicOpenPredicate_NeighborhoodPredicate :
+  NeighborhoodPredicate X :=
+nhd_by_basic_open_set_def.
 
-Definition Build_TopologicalSpace_from_open_basis : TopologicalSpace.
-refine (Build_TopologicalSpace X B_open _ _ _).
-intros.
-pose proof (choice (fun (x:{S:Ensemble X | In F S}) (F:Family X) =>
-  Included F B /\ proj1_sig x = FamilyUnion F)).
-refine (let H:=(H0 _) in _).
-intros.
-destruct x.
-pose proof (H x i).
-destruct H1.
-exists F0.
-split; simpl; trivial.
-clear H0.
-destruct H1.
-assert (FamilyUnion F = FamilyUnion (IndexedUnion x)).
-apply Extensionality_Ensembles; split; red; intros.
-destruct H1.
-pose proof (H0 (exist _ _ H1)).
-destruct H3.
-simpl in H4.
-rewrite H4 in H2.
-destruct H2.
-constructor 1 with S0.
-exists (exist _ _ H1).
-assumption.
-assumption.
+Inductive in_basic_open_set_def (x:X) : Prop :=
+| intro_in_basic_open_set_def : ∀ U:Ensemble X, basic_open_set_def U →
+  x ∈ U → in_basic_open_set_def x.
 
-destruct H1.
-destruct H1.
-pose proof (H0 a).
-destruct H3.
-destruct a.
-simpl in H4.
-exists x2.
-assumption.
-rewrite H4.
-exists x1.
-assumption.
-assumption.
+Class BasicOpenSetsFormTopology : Prop := {
+  basic_open_intersection_cond : ∀ U V:Ensemble X,
+    basic_open_set_def U → basic_open_set_def V →
+    open (U ∩ V);
+  basic_open_cover_cond : ∀ x:X, in_basic_open_set_def x
+}.
 
-rewrite H1.
-constructor.
-red; intros.
-destruct H2.
-pose proof (H0 a).
-destruct H3.
-auto with sets.
+Context `{!BasicOpenSetsFormTopology}.
 
-intros.
-assert (Intersection U V = FamilyUnion
-  [ S:Ensemble X | In B S /\ Included S (Intersection U V) ]).
-apply Extensionality_Ensembles; split; red; intros.
-destruct H.
-destruct H0.
-destruct H1.
-destruct H1.
-destruct H2.
-pose proof (H _ H1).
-pose proof (H0 _ H2).
-pose proof (Hbasis _ _ H5 H6).
-assert (In (Intersection S S0) x). constructor; trivial.
-apply H7 in H8.
-clear H7.
-destruct H8.
-destruct H7 as [? [? ?]].
-exists x0; trivial.
-constructor.
-split; trivial.
-red; intros.
-constructor.
-exists S; trivial.
-pose proof (H9 x1 H10).
-destruct H11; trivial.
-exists S0; trivial.
-pose proof (H9 x1 H10).
-destruct H11; trivial.
-destruct H1.
-destruct H1.
-destruct H1.
-auto.
-
-rewrite H1.
-constructor.
-red; intros.
-destruct H2.
-destruct H2.
-auto.
-
-assert (Full_set = FamilyUnion B).
-apply Extensionality_Ensembles; split; red; intros.
-pose proof (Hbasis_cover x).
-destruct H0.
-destruct H0.
-exists x0; trivial.
-constructor.
-
-rewrite H; constructor.
-auto with sets.
-Defined.
-
-Lemma Build_TopologicalSpace_from_open_basis_point_set:
-  point_set Build_TopologicalSpace_from_open_basis = X.
+Lemma basic_open_set_def_impl_open : ∀ U:Ensemble X,
+  basic_open_set_def U → open U.
 Proof.
-reflexivity.
+intros. hnf; intros. exists U; auto with sets.
 Qed.
 
-Lemma Build_TopologicalSpace_from_open_basis_basis:
-  @open_basis Build_TopologicalSpace_from_open_basis B.
+Instance BasicOpenSetsFormTopologicalSpace :
+  NeighborhoodPredicateFormsTopology (X:=X).
 Proof.
 constructor.
-intros.
-simpl.
-assert (V = FamilyUnion (Singleton V)).
-apply Extensionality_Ensembles; split; red; intros.
-exists V; auto with sets.
-destruct H0.
-destruct H0; trivial.
-rewrite H0; constructor.
-red; intros.
-destruct H1; trivial.
-simpl.
-intros.
-destruct H.
-destruct H0.
-exists S; repeat split; auto with sets.
-red; intros.
-exists S; trivial.
++ intros. destruct (basic_open_cover_cond x). exists U; trivial.
+  intros y ?; constructor.
++ intros. destruct H1. exists U; auto with sets.
++ intros. destruct H1 as [U], H2 as [V].
+  pose proof (basic_open_intersection_cond U V H1 H2).
+  let H := fresh in refine (let H := H7 x _ in _).
+  - split; trivial.
+  - destruct H8. exists U0; trivial. rewrite H10. f_equiv; trivial.
++ intros. destruct H1. exists U; auto using basic_open_set_def_impl_open.
+Qed.
+
+About BasicOpenSetsFormBasis.
+
+Global Instance BasicOpenPredicateDef_BasicOpenPredicate :
+  BasicOpenPredicate X :=
+basic_open_set_def.
+
+Global Instance BasicOpenSetsDefFormBasis : BasicOpenSetsFormBasis.
+Proof.
+constructor.
++ exact basic_open_set_def_impl_open.
++ intros. pose proof (H1 x H2). destruct H3 as [V]. exists V; trivial.
 Qed.
 
 End BuildFromOpenBasis.
-
-Implicit Arguments open_basis_cond [[X]].
-Implicit Arguments open_basis_cover_cond [[X]].
-Implicit Arguments Build_TopologicalSpace_from_open_basis [[X]].
-Implicit Arguments Build_TopologicalSpace_from_open_basis_point_set [[X]].
-Implicit Arguments Build_TopologicalSpace_from_open_basis_basis [[X]].
