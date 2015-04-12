@@ -4,6 +4,7 @@ Require Export OpenBases.
 Require Export IndexedFamilies.
 Require Export EnsemblesSpec.
 Require Import EnsemblesUtf8.
+Require Import EnsemblesInstances.
 
 Generalizable All Variables.
 
@@ -34,6 +35,17 @@ Class BasicNeighborhoodsFormNeighborhoodBasis (x:X)
 }.
 
 End BasicNeighborhoods.
+
+Lemma open_equiv_contains_basic_neighborhood_of_every_element
+  `{TopologicalSpace X} `{!∀ x:X, BasicNeighborhoodPredicate x}
+  `{!∀ x:X, BasicNeighborhoodsFormNeighborhoodBasis x} :
+  ∀ U:Ensemble X, open U ↔ (∀ x:X, x ∈ U → contains_basic_neighborhood U x).
+Proof.
+intros. rewrite open_equiv_neighborhood_of_every_element. split; intros.
++ pose proof (H3 x H4). auto using neighborhood_basis_cond.
++ destruct (H3 x H4) as [V]. eauto using neighborhood_basis_elements,
+  neighborhood_upward_closed.
+Qed.
 
 Section NeighborhoodBasis.
 
@@ -174,76 +186,67 @@ Qed.
 
 End OpenNeighborhoodBasesToOpenBasis.
 
-Section build_from_open_neighborhood_bases.
+Section BuildFromOpenNeighborhoodBases.
 
-Variable X:Type.
-Variable NB : X -> Family X.
+Class OpenNeighborhoodBasesForTopology (X:Type) : Type :=
+basic_open_neighborhood_def : Ensemble X → X → Prop.
 
-Hypothesis neighborhood_basis_cond :
-  forall (U V:Ensemble X) (x:X), In (NB x) U -> In (NB x) V ->
-    exists W:Ensemble X, In (NB x) W /\ Included W (Intersection U V).
-Hypothesis neighborhood_basis_cond2 :
-  forall (U:Ensemble X) (x:X), In (NB x) U -> In U x.
-Hypothesis neighborhood_basis_inhabited_cond :
-  forall x:X, Inhabited (NB x).
-Hypothesis neighborhood_basis_system_cond :
-  forall (x y:X) (U:Ensemble X), In (NB x) U -> In U y ->
-  exists V:Ensemble X, In (NB y) V /\ Included V U.
+Context `{OpenNeighborhoodBasesForTopology X}.
 
-Definition Build_TopologicalSpace_from_open_neighborhood_bases :
-  TopologicalSpace.
-refine (Build_TopologicalSpace_from_open_basis (IndexedUnion NB)
-  _ _).
-red; intros.
-destruct H as [y U'].
-destruct H0 as [z V'].
-destruct H1.
-destruct (neighborhood_basis_system_cond y x U' H H1) as
-  [U'' [? ?]].
-destruct (neighborhood_basis_system_cond z x V' H0 H2) as
-  [V'' [? ?]].
-destruct (neighborhood_basis_cond U'' V'' x H3 H5) as
-  [W [? ?]].
-exists W.
-repeat split.
-exists x; trivial.
-apply neighborhood_basis_cond2; trivial.
-apply H4.
-pose proof (H8 _ H9).
-destruct H10; assumption.
-apply H6.
-pose proof (H8 _ H9).
-destruct H10; assumption.
+Inductive contains_basic_open_neighborhood_def
+  (N : Ensemble X) (x : X) : Prop :=
+| intro_contains_basic_open_neighborhood_def : ∀ U:Ensemble X,
+  basic_open_neighborhood_def U x → U ⊆ N →
+  contains_basic_open_neighborhood_def N x.
 
-red; intros.
-destruct (neighborhood_basis_inhabited_cond x) as [U].
-exists U; split; auto.
-exists x; trivial.
-Defined.
+Global Instance OpenNeighborhoodBasesForTopology_NeighborhoodPredicate :
+  NeighborhoodPredicate X :=
+contains_basic_open_neighborhood_def.
 
-Lemma Build_TopologicalSpace_from_open_neighborhood_bases_basis:
-  forall x:X,
-    open_neighborhood_basis (NB x) x
-      (X:=Build_TopologicalSpace_from_open_neighborhood_bases).
+Class OpenNeighborhoodBasesFormTopology : Prop := {
+  open_neighborhood_basis_intersection : ∀ (U V:Ensemble X) (x:X),
+    basic_open_neighborhood_def U x → basic_open_neighborhood_def V x →
+    contains_basic_open_neighborhood_def (U ∩ V) x;
+  open_neighborhood_basis_element : ∀ (U:Ensemble X) (x:X),
+    basic_open_neighborhood_def U x → x ∈ U;
+  open_neighborhood_basis_inhabited : ∀ x:X, ∃ U:Ensemble X,
+    basic_open_neighborhood_def U x;
+  open_neighborhood_basis_compat : ∀ (U:Ensemble X) (x:X),
+    basic_open_neighborhood_def U x → open U
+}.
+
+Context `{!OpenNeighborhoodBasesFormTopology}.
+
+Global Instance OpenNeighborhoodBasesFormTopologicalSpace :
+  NeighborhoodPredicateFormsTopology.
 Proof.
-assert (open_basis (IndexedUnion NB)
-  (X:=Build_TopologicalSpace_from_open_neighborhood_bases))
-  by apply Build_TopologicalSpace_from_open_basis_basis.
-destruct H.
-intros.
 constructor.
-intros.
-constructor.
-apply open_basis_elements.
-exists x; trivial.
-apply neighborhood_basis_cond2; trivial.
-
-intros.
-destruct H.
-destruct (open_basis_cover x U H H0) as [V [? []]].
-destruct H1 as [y V].
-destruct (neighborhood_basis_system_cond y x V H1 H3) as [W []].
-exists W; auto with sets.
++ intros. destruct (open_neighborhood_basis_inhabited x) as [U].
+  exists U; trivial. constructor.
++ intros. destruct H1 as [U]. exists U; auto with sets.
++ intros. destruct H1 as [U], H2 as [V].
+  destruct (open_neighborhood_basis_intersection U V x H1 H2) as [W].
+  exists W; auto with sets. rewrite H6. f_equiv; trivial.
++ intros. do 2 red in H1. destruct H1 as [U]. exists U; trivial.
+  - eauto using open_neighborhood_basis_compat.
+  - eauto using open_neighborhood_basis_element.
 Qed.
 
-End build_from_open_neighborhood_bases.
+Global Instance
+OpenNeighborhoodBasesForTopologicalSpace_BasicOpenNeighborhoodPredicate :
+  ∀ x:X, BasicOpenNeighborhoodPredicate x :=
+fun x N => basic_open_neighborhood_def N x.
+
+Global Instance
+BasicOpenNeighborhoodsDefFormOpenNeighborhoodBases :
+  ∀ x:X, BasicOpenNeighborhoodsFormOpenNeighborhoodBasis x.
+Proof.
+constructor.
++ intros. constructor.
+  - eauto using open_neighborhood_basis_compat.
+  - eauto using open_neighborhood_basis_element.
++ intros. destruct H1. pose proof (H1 x H2). destruct H3 as [U].
+  exists U; trivial.
+Qed.
+
+End BuildFromOpenNeighborhoodBases.
