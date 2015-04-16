@@ -2,131 +2,122 @@ Require Export TopologicalSpaces.
 Require Export OpenBases.
 Require Export FiniteTypes.
 Require Export EnsemblesSpec.
+Require Import FiniteIntersections.
+Require Import EnsemblesUtf8.
+Require Import FunctionalExtensionality.
+
+Generalizable All Variables.
+
+Section SubbasicOpenSets.
+
+Class SubbasicOpenPredicate (X:Type) : Type :=
+subbasic_open_set : Ensemble X → Prop.
+
+Context `{TopologicalSpace X} `{SubbasicOpenPredicate X}.
+
+Global Instance SubbasicOpenPredicate_BasicOpenPredicate :
+  BasicOpenPredicate X :=
+fun U => U ∈ finite_intersections [ S:Ensemble X | subbasic_open_set S ].
+
+Class SubbasicOpenSetsFormSubbasis : Prop :=
+SubbasicOpenSetsFormSubbasis_BasicOpenSetsFormBasis
+  :> BasicOpenSetsFormBasis.
+
+Context `{!SubbasicOpenSetsFormSubbasis}.
+
+Lemma SubbasicOpen_Open : ∀ U:Ensemble X, subbasic_open_set U → open U.
+Proof.
+intros. apply open_basis_elements. do 2 red. apply intro_S.
+constructor; trivial.
+Qed.
+
+End SubbasicOpenSets.
 
 Section Subbasis.
 
-Variable X:TopologicalSpace.
-Variable SB:Family (point_set X).
+Context `{TopologicalSpace X}.
+Variable SB : Family X.
 
-Record subbasis : Prop := {
-  subbasis_elements: forall U:Ensemble (point_set X),
-    In SB U -> open U;
-  subbasis_cover: forall (U:Ensemble (point_set X)) (x:point_set X),
-    In U x -> open U ->
-    exists A:Type, FiniteT A /\
-    exists V:A->Ensemble (point_set X),
-      (forall a:A, In SB (V a)) /\
-      In (IndexedIntersection V) x /\
-      Included (IndexedIntersection V) U
-}.
+(* Intentionally not a global instance *)
+Class subbasis : Prop :=
+subbasis_open_basis :> open_basis (finite_intersections SB).
 
-Lemma open_basis_is_subbasis: open_basis SB -> subbasis.
+Instance Subbasis_SubbasicOpenPredicate : SubbasicOpenPredicate X :=
+fun S => S ∈ SB.
+
+Lemma subbasis_equiv_forms_subbasis :
+  subbasis ↔ SubbasicOpenSetsFormSubbasis.
 Proof.
-intros.
-destruct H.
-constructor.
-exact open_basis_elements.
-intros.
-destruct (open_basis_cover x U); trivial.
-destruct H1 as [? [? ?]].
-exists True.
-split.
-apply True_finite.
-exists (True_rect x0).
-repeat split; intros.
-destruct a.
-simpl.
-assumption.
-destruct a.
-simpl.
-assumption.
-red; intros.
-destruct H4.
-apply H2.
-exact (H4 I).
-Qed.
-
-Lemma finite_intersections_of_subbasis_form_open_basis:
-  subbasis ->
-  open_basis [ U:Ensemble (point_set X) |
-              exists A:Type, FiniteT A /\
-              exists V:A->Ensemble (point_set X),
-              (forall a:A, In SB (V a)) /\
-              U = IndexedIntersection V ].
-Proof.
-constructor.
-intros.
-destruct H0.
-destruct H0 as [A [? [V' [? ?]]]].
-rewrite H2.
-apply open_finite_indexed_intersection; trivial.
-intros.
-apply H; trivial.
-
-intros.
-pose proof (subbasis_cover H U x).
-destruct H2 as [A [? [V [? [? ?]]]]]; trivial.
-exists (IndexedIntersection V).
-repeat split; trivial.
-exists A; split; trivial.
-exists V; trivial.
-split; trivial.
-destruct H4.
-exact H4.
+unfold subbasis, open_basis, SubbasicOpenSetsFormSubbasis.
+match goal with |- @BasicOpenSetsFormBasis ?X ?H ?B1 ↔
+                   @BasicOpenSetsFormBasis ?X ?H ?B2 => replace B1 with B2 end.
++ reflexivity.
++ extensionality U. unfold SubbasicOpenPredicate_BasicOpenPredicate,
+  Basis_BasicOpenPredicate, subbasic_open_set, Subbasis_SubbasicOpenPredicate.
+  do 2 f_equal. apply Extensionality_Ensembles; split; red; intros.
+  - destruct H1; trivial.
+  - constructor; trivial.
 Qed.
 
 End Subbasis.
 
-Implicit Arguments subbasis [[X]].
+Lemma open_basis_is_subbasis : ∀ `{TopologicalSpace X} (B : Family X),
+  open_basis B -> subbasis B.
+Proof.
+intros. set (basic_open := Basis_BasicOpenPredicate B). constructor.
++ intros. induction H2.
+  - apply open_full.
+  - eauto using open_basis_elements.
+  - auto using open_intersection2.
++ intros. destruct (open_basis_cover x U H2 H3) as [V]. exists V; trivial.
+  do 2 red. apply intro_S; trivial.
+Qed.
 
 Section build_from_subbasis.
 
-Variable X:Type.
-Variable S:Family X.
+Class SubbasicOpenPredicateForTopology (X:Type) : Type :=
+subbasic_open_set_def : Ensemble X → Prop.
 
-Require Import FiniteIntersections.
+Context `{SubbasicOpenPredicateForTopology X}.
 
-Definition Build_TopologicalSpace_from_subbasis : TopologicalSpace.
-refine (Build_TopologicalSpace_from_open_basis
-  (finite_intersections S) _ _).
-red; intros.
-exists (Intersection U V); repeat split; trivial.
-apply intro_intersection; trivial.
-destruct H1; assumption.
-destruct H1; assumption.
-destruct H2; assumption.
-destruct H2; assumption.
+Global Instance Subbasic_BasicOpenPredicateForTopology :
+  BasicOpenPredicateForTopology X :=
+fun U => U ∈ finite_intersections [ S:Ensemble X | subbasic_open_set_def S ].
 
-red; intro.
-exists Full_set.
-split; constructor.
-Defined.
-
-Lemma Build_TopologicalSpace_from_subbasis_subbasis:
-  @subbasis Build_TopologicalSpace_from_subbasis S.
+Global Instance SubbasicOpenSetsFormTopology :
+  BasicOpenSetsFormTopology.
 Proof.
-assert (@open_basis Build_TopologicalSpace_from_subbasis
-  (finite_intersections S)).
-apply Build_TopologicalSpace_from_open_basis_basis.
 constructor.
++ intros. do 2 red in H0, H1. do 2 red. intros. exists (U ∩ V); auto with sets.
+  do 2 red. auto using intro_intersection.
++ intros. exists Full_set.
+  - constructor.
+  - constructor.
+Qed.
+
+Lemma build_from_subbasis_minimal {open2 : OpenSets X}
+  `{!TopologicalSpace X (H := open2)} :
+(∀ U:Ensemble X, subbasic_open_set_def U → open U (OpenSets := open2)) →
+∀ U:Ensemble X, open U (OpenSets := Neighborhoods_to_OpenSets) →
+open U (OpenSets := open2).
+Proof.
 intros.
-simpl in U.
-apply open_basis_elements with (finite_intersections S); trivial.
-constructor; trivial.
+rewrite open_equiv_union_of_basic_open_sets in H1; try typeclasses eauto.
+destruct H1. apply open_family_union. intros. apply H1 in H2.
+do 4 red in H2. induction H2.
++ apply open_full.
++ destruct H2. auto.
++ auto using open_intersection2.
+Qed.
 
-intros.
-destruct (@open_basis_cover _ _ H x U) as [V]; trivial.
-destruct H2 as [? [? ?]].
-simpl.
+Global Instance SubbasicOpenPredicateDef_SubbasicOpenPredicate :
+  SubbasicOpenPredicate X :=
+subbasic_open_set_def.
 
-pose proof (finite_intersection_is_finite_indexed_intersection
-  _ _ H2).
-destruct H5 as [A [? [W [? ?]]]].
-exists A; split; trivial.
-exists W; repeat split; trivial.
-
-rewrite H7 in H4; destruct H4; apply H4.
-rewrite H7 in H3; assumption.
+Global Instance SubbasicOpenSetsDefFormSubbasis :
+  SubbasicOpenSetsFormSubbasis.
+Proof.
+red. typeclasses eauto.
 Qed.
 
 End build_from_subbasis.

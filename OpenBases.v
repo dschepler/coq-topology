@@ -113,7 +113,7 @@ Proof.
 intros. hnf; intros. exists U; auto with sets.
 Qed.
 
-Instance BasicOpenSetsFormTopologicalSpace :
+Global Instance BasicOpenSetsFormTopologicalSpace :
   NeighborhoodPredicateFormsTopology (X:=X).
 Proof.
 constructor.
