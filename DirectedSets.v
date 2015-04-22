@@ -2,109 +2,103 @@ Require Export Relation_Definitions.
 Require Import Relation_Definitions_Implicit.
 Require Import Classical.
 Require Import Arith.
+Require Import EnsemblesUtf8.
+Require Export RelationClasses.
 
-Record DirectedSet := {
-  DS_set : Type;
-  DS_ord : relation DS_set;
-  DS_ord_cond : preorder DS_ord;
-  DS_join_cond : forall i j:DS_set, exists k:DS_set,
-    DS_ord i k /\ DS_ord j k
+Generalizable All Variables.
+
+Class Le (X:Type) : Type :=
+le : X → X → Prop.
+
+Notation "(≤)" := le (at level 0).
+
+Infix "≤" := le (at level 70, no associativity).
+
+Inductive vee_compat {I:Type} `{Le I} (i j:I) : Prop :=
+| intro_vee_compat : ∀ k:I, i ≤ k → j ≤ k → vee_compat i j.
+
+Class DirectedSet (I:Type) `{Le I} : Prop := {
+  DS_preord :> PreOrder (≤);
+  DS_vee_compat : ∀ i j:I, vee_compat i j
 }.
 
-Implicit Arguments DS_ord [[d]].
-Implicit Arguments DS_ord_cond [[d]].
-Implicit Arguments DS_join_cond [[d]].
+Instance nat_le : Le nat :=
+Peano.le.
+
+Instance nat_DS : DirectedSet nat.
+Proof.
+constructor.
++ constructor.
+  - exact le_n.
+  - exact le_trans.
++ intros. exists (max i j); unfold le, nat_le; auto with arith.
+Qed.
 
 Section for_large.
 
-Variable I : DirectedSet.
+Context {I:Type} `{DirectedSet I}.
 
-Definition eventually (P : DS_set I -> Prop) : Prop :=
-  exists i:DS_set I, forall j:DS_set I,
-  DS_ord i j -> P j.
+Inductive eventually (P : I → Prop) : Prop :=
+| intro_eventually : ∀ i0 : I, (∀ i:I, i0 ≤ i → P i) → eventually P.
 
-Lemma eventually_and: forall (P Q: DS_set I -> Prop),
-  eventually P -> eventually Q ->
-  eventually (fun i:DS_set I => P i /\ Q i).
+Lemma eventually_and : ∀ P Q : I → Prop, eventually P → eventually Q →
+  eventually (fun i:I => P i ∧ Q i).
 Proof.
-intros.
-destruct H.
-destruct H0.
-destruct (DS_join_cond x x0) as [? [? ?]].
-exists x1.
-intros; split.
-apply H.
-apply preord_trans with x1; trivial.
-apply DS_ord_cond.
-apply H0.
-apply preord_trans with x1; trivial.
-apply DS_ord_cond.
+intros. destruct H1 as [i0], H2 as [j0].
+destruct (DS_vee_compat i0 j0) as [k0]. exists k0. intros; split.
++ apply H1. transitivity k0; trivial.
++ apply H2. transitivity k0; trivial.
 Qed.
 
-Lemma eventually_impl_base: forall (P Q: DS_set I -> Prop),
-  (forall i:DS_set I, P i -> Q i) ->
-  eventually P -> eventually Q.
+Lemma eventually_impl_base : ∀ P Q : I → Prop,
+  (∀ i:I, P i → Q i) → eventually P → eventually Q.
 Proof.
-intros.
-destruct H0.
-exists x.
-intros.
-auto.
+intros. destruct H2 as [i0]. exists i0. auto.
 Qed.
 
-Lemma eventually_impl: forall (P Q: DS_set I -> Prop),
-  eventually P -> eventually (fun i:DS_set I => P i -> Q i) ->
-  eventually Q.
+Lemma eventually_impl : ∀ P Q : I → Prop,
+  eventually P → eventually (fun i => P i → Q i) → eventually Q.
 Proof.
-intros.
-apply eventually_impl_base with (P := fun (i:DS_set I) =>
-  P i /\ (P i -> Q i)).
-tauto.
-apply eventually_and; assumption.
+intros. apply eventually_impl_base with (P := fun i => P i ∧ (P i → Q i)).
++ tauto.
++ apply eventually_and; assumption.
 Qed.
 
-Definition exists_arbitrarily_large (P: DS_set I -> Prop) :=
-  forall i:DS_set I, exists j:DS_set I,
-  DS_ord i j /\ P j.
+Inductive exists_larger_witness (P : I → Prop) (i : I) : Prop :=
+| intro_exists_larger_witness : ∀ j:I, i ≤ j → P j →
+  exists_larger_witness P i.
 
-Lemma not_eal_eventually_not: forall (P: DS_set I -> Prop),
-  ~ exists_arbitrarily_large P ->
-  eventually (fun i:DS_set I => ~ P i).
+Definition exists_arbitrarily_large (P : I → Prop) : Prop :=
+  ∀ i:I, exists_larger_witness P i.
+
+Lemma eventually_impl_eal : ∀ P : I → Prop,
+  eventually P → exists_arbitrarily_large P.
 Proof.
-intros.
-apply not_all_ex_not in H.
-destruct H as [i].
-exists i.
-intros.
-intro.
-contradiction H.
-exists j; split; trivial.
+intros. destruct H1 as [i0]. intro. destruct (DS_vee_compat i0 i) as [j].
+exists j; auto.
 Qed.
 
-Lemma not_eventually_eal_not: forall (P: DS_set I -> Prop),
-  ~ eventually P ->
-  exists_arbitrarily_large (fun i:DS_set I => ~ P i).
+Lemma eal_eventually_ind : ∀ (P : I → Prop) (Q : Prop),
+  (exists_arbitrarily_large (fun i => P i → Q)) → eventually P → Q.
 Proof.
-intros.
-red; intros.
-apply NNPP; intro.
-contradiction H.
-exists i.
-intros.
-apply NNPP; intro.
-contradiction H0.
-exists j; split; trivial.
+intros. destruct H2 as [j]. destruct (H1 j) as [k]. auto.
+Qed.
+
+Lemma not_eal_eventually_not : ∀ P : I → Prop,
+ ¬ exists_arbitrarily_large P → eventually (fun i:I => ¬ P i).
+Proof.
+intros. destruct (not_all_ex_not _ _ H1) as [i0]. exists i0. intros.
+intro. contradict H2. exists i; trivial.
+Qed.
+
+Lemma not_eventually_eal_not : ∀ P : I → Prop,
+  ¬ eventually P → exists_arbitrarily_large (fun i:I => ¬ P i).
+Proof.
+intros. red; intros. apply NNPP; intro. contradict H1. exists i.
+intros j ?. apply NNPP; intro. contradict H2. exists j; trivial.
 Qed.
 
 End for_large.
-
-Implicit Arguments eventually [[I]].
-Implicit Arguments eventually_and [[I]].
-Implicit Arguments eventually_impl_base [[I]].
-Implicit Arguments eventually_impl [[I]].
-Implicit Arguments exists_arbitrarily_large [[I]].
-Implicit Arguments not_eal_eventually_not [[I]].
-Implicit Arguments not_eventually_eal_not [[I]].
 
 Notation "'for' 'large' i : I , p" :=
   (eventually (fun i:I => p))
@@ -114,18 +108,23 @@ Notation "'exists' 'arbitrarily' 'large' i : I , p" :=
   (exists_arbitrarily_large (fun i:I => p))
   (at level 200, i ident, right associativity).
 
-Section nat_DS.
+Section sig_DS.
 
-Definition nat_DS : DirectedSet.
-refine (Build_DirectedSet nat le _ _).
-constructor; red; intros; auto with arith.
-apply le_trans with y; assumption.
-intros.
-case (lt_eq_lt_dec i j).
-exists j.
-destruct s; auto with arith.
-destruct e; auto with arith.
-exists i; auto with arith.
-Defined.
+Context {I} `{DirectedSet I} (P : I → Prop).
 
-End nat_DS.
+Global Instance restriction_ord : Le (sig P) :=
+fun x y => proj1_sig x ≤ proj1_sig y.
+
+Lemma sig_DS : exists_arbitrarily_large P → DirectedSet (sig P).
+Proof.
+constructor.
++ constructor.
+  - intros x. unfold le, restriction_ord. reflexivity.
+  - intros x y z. unfold le, restriction_ord. apply transitivity.
++ intros. destruct (DS_vee_compat (proj1_sig i) (proj1_sig j)) as [k].
+  destruct (H1 k) as [k'].
+  exists (exist P k' H5); unfold le, restriction_ord; simpl;
+  etransitivity; eassumption.
+Qed.
+
+End sig_DS.
