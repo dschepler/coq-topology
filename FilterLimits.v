@@ -1,215 +1,104 @@
 Require Export TopologicalSpaces.
 Require Export Filters.
 Require Export Neighborhoods.
+Require Import EnsemblesUtf8.
 
-Definition neighborhood_filter {X:TopologicalSpace} (x0:point_set X) :
-  Filter (point_set X).
-refine (Build_Filter _
-  [ N:Ensemble (point_set X) | neighborhood N x0 ]
-  _ _ _ _).
-intros.
-destruct H; destruct H0; constructor.
-destruct H as [U []].
-destruct H0 as [V []].
-destruct H.
-destruct H0.
-exists (Intersection U V); split.
-split.
-apply open_intersection2; trivial.
-constructor; trivial.
-red; intros.
-destruct H5; constructor; auto.
+Definition neighborhood_filter {X:Type} `{OpenSets X}
+  (x0 : X) : Family X :=
+[ N : Ensemble X | neighborhood N x0 ].
 
-intros.
-destruct H.
-destruct H as [U [[]]].
-constructor.
-exists U; repeat split; trivial.
-auto with sets.
-
-constructor.
-exists Full_set; repeat split; auto with sets topology.
-
-red; intro.
-destruct H.
-destruct H as [U [[]]].
-apply H1 in H0.
-destruct H0.
-Defined.
-
-Definition filter_limit {X:TopologicalSpace} (F:Filter (point_set X))
-  (x0:point_set X) : Prop :=
-  Included (filter_family (neighborhood_filter x0))
-           (filter_family F).
-
-Definition filter_cluster_point {X:TopologicalSpace}
-  (F:Filter (point_set X)) (x0:point_set X) : Prop :=
-  forall S:Ensemble (point_set X), In (filter_family F) S ->
-  In (closure S) x0.
-
-Lemma filter_limit_is_cluster_point:
-  forall {X:TopologicalSpace} (F:Filter (point_set X)) (x0:point_set X),
-  filter_limit F x0 -> filter_cluster_point F x0.
+Instance neighborhood_filter_filter : ∀ {X:Type} `{TopologicalSpace X}
+  (x0 : X), Filter (neighborhood_filter x0).
 Proof.
-intros.
-red; intros.
-apply meets_every_open_neighborhood_impl_closure.
-intros.
-assert (In (filter_family F) U).
-apply H.
-simpl.
-constructor.
-exists U; repeat split; auto with sets.
-assert (In (filter_family F) (Intersection S U)).
-apply filter_intersection; trivial.
-apply NNPP; red; intro.
-assert (Intersection S U = Empty_set).
-apply Extensionality_Ensembles; split; red; intros.
-contradiction H5.
-exists x; trivial.
-destruct H6.
-rewrite H6 in H4.
-contradiction (filter_empty _ F).
+intros. constructor.
++ intros. destruct H1, H2. constructor. auto using neighborhood_intersection.
++ intros. destruct H1. constructor. eauto using neighborhood_upward_closed.
++ constructor. apply neighborhood_full.
++ intro. destruct H1. destruct H1. apply H3 in H2. destruct H2.
 Qed.
 
-Lemma ultrafilter_cluster_point_is_limit: forall {X:TopologicalSpace}
-  (F:Filter (point_set X)) (x0:point_set X),
-  filter_cluster_point F x0 -> ultrafilter F ->
-  filter_limit F x0.
+Definition filter_limit {X:Type} `{OpenSets X}
+  (F:Family X) (x0:X) : Prop :=
+neighborhood_filter x0 ⊆ F.
+
+Definition filter_cluster_point {X:Type} `{OpenSets X}
+  (F:Family X) (x0 : X) : Prop :=
+∀ S : Ensemble X, S ∈ F → x0 ∈ closure S.
+
+Lemma filter_limit_is_cluster_point :
+  ∀ {X:Type} `{TopologicalSpace X} (F:Family X) `{!Filter F} (x0:X),
+  filter_limit F x0 → filter_cluster_point F x0.
 Proof.
-intros.
-red.
-red; intros N ?.
-destruct H1.
-destruct H1 as [U [[]]].
-cut (In (filter_family F) U).
-intros; apply filter_upward_closed with U; trivial.
-clear N H3.
-apply NNPP; intro.
-assert (In (filter_family F) (Complement U)).
-pose proof (H0 U).
-tauto.
-pose proof (H _ H4).
-rewrite closure_fixes_closed in H5.
-contradiction H5; trivial.
-red; rewrite Complement_Complement; trivial.
+intros. red; intros. rewrite closure_equiv_meets_every_open_neighborhood.
+intros. assert (U ∈ F).
++ apply H1. constructor. apply open_neighborhood_is_neighborhood.
+  constructor; trivial.
++ assert (S ∩ U ∈ F) by auto using filter_intersection.
+  apply NNPP; intro. assert (S ∩ U = ∅).
+  - apply Extensionality_Ensembles; split; auto with sets.
+    intros ? [x ? ?]. exfalso. apply H7. exists x. constructor; trivial.
+  - rewrite H8 in H6. revert H6. apply filter_empty.
 Qed.
 
-Lemma closure_impl_filter_limit: forall {X:TopologicalSpace}
-  (S:Ensemble (point_set X)) (x0:point_set X),
-  In (closure S) x0 ->
-  exists F:Filter (point_set X),
-    In (filter_family F) S /\ filter_limit F x0.
+Lemma ultrafilter_cluster_point_is_limit :
+  ∀ {X:Type} `{TopologicalSpace X} (F:Family X) `{!Ultrafilter F} (x0:X),
+  filter_cluster_point F x0 → filter_limit F x0.
 Proof.
-intros.
-assert (Inhabited S).
-destruct (closure_impl_meets_every_open_neighborhood _ _ _ H
-  Full_set).
-apply open_full.
-constructor.
-destruct H0.
-exists x; trivial.
+intros. red; red; intros N ?. destruct H2. destruct H2.
+apply filter_upward_closed with (2 := H4).
+destruct (ultrafilter_cond U); trivial. exfalso.
+apply H1 in H5. rewrite closure_fixes_closed in H5.
++ auto.
++ red. rewrite Complement_Complement; trivial.
+Qed.
 
-refine (let H1:=_ in let H2:=_ in let H3:=_ in
-  let Sfilt := Build_Filter_from_basis (Singleton S)
-  H1 H2 H3 in _).
-exists S; constructor.
-red; intro.
-inversion H2.
-rewrite H3 in H0.
-destruct H0.
-destruct H0.
+(* "x0 is the limit of some filter containing S" *)
+Inductive limit_of_filter_containing {X:Type} `{OpenSets X} (x0:X)
+  (S:Ensemble X) : Prop :=
+| limit_of_filter_containing_intro : ∀ F : Family X, Filter F →
+  S ∈ F → filter_limit F x0 → limit_of_filter_containing x0 S.
 
-intros.
-destruct H3.
-destruct H4.
-exists S; split; auto with sets.
-
-refine (let H4:=_ in
-  ex_intro _ (filter_sum (neighborhood_filter x0) Sfilt H4) _).
-intros.
-simpl in H4.
-destruct H4.
-destruct H4 as [U [[]]].
-simpl in H5.
-destruct H5.
-destruct H5 as [T0 []].
-destruct H5.
-destruct (closure_impl_meets_every_open_neighborhood
-  _ _ _ H U); trivial.
-destruct H5.
-exists x; constructor; auto.
-
-split.
-simpl.
-constructor.
-exists S.
-split; auto with sets.
-exists ( (Full_set, S) ).
-constructor; split.
-constructor.
-exists Full_set; repeat split.
-apply open_full.
-constructor.
-exists S; split; auto with sets.
-apply Extensionality_Ensembles; split; red; intros.
-constructor; trivial; constructor.
-destruct H5; trivial.
-
-red; red; intros U ?.
-constructor.
-exists U.
-split; auto with sets.
-exists ( (U, Full_set) ).
-constructor.
-split; trivial.
-constructor.
-exists S; split; auto with sets.
-red; intros; constructor.
-apply Extensionality_Ensembles; split; red; intros.
-constructor; trivial; constructor.
-destruct H6; trivial.
+Lemma closure_equiv_limit_of_filter_containing :
+  ∀ {X:Type} `{TopologicalSpace X} (x0:X) (S:Ensemble X),
+  x0 ∈ closure S ↔ limit_of_filter_containing x0 S.
+Proof.
+split; intros.
++ exists (filter_add (neighborhood_filter x0) S).
+  - apply filter_add_filter.
+    * typeclasses eauto.
+    * intros N ?. destruct H2. destruct H2.
+      rewrite closure_equiv_meets_every_open_neighborhood in H1.
+      destruct (H1 _ H2 H3). destruct H5.
+      exists x. constructor; auto.
+  - apply filter_add_element. typeclasses eauto.
+  - red. apply filter_add_extension.
++ destruct H1. apply filter_limit_is_cluster_point in H3; auto.
 Qed.
 
 Require Export Continuity.
 
-Lemma continuous_function_preserves_filter_limits:
-  forall (X Y:TopologicalSpace) (f:point_set X -> point_set Y)
-    (x:point_set X) (F:Filter (point_set X)),
-  filter_limit F x -> continuous_at f x ->
-  filter_limit (filter_direct_image f F) (f x).
+Lemma continuous_at_equiv_preserves_filter_limits :
+  ∀ {X Y:Type} `{TopologicalSpace X} `{TopologicalSpace Y}
+  (f:X → Y) (x0:X),
+  continuous_at f x0 ↔ ∀ F:Family X, Filter F → filter_limit F x0 →
+                       filter_limit (filter_direct_image f F) (f x0).
 Proof.
-intros.
-red; intros.
-intros V ?.
-destruct H1.
-constructor.
-cut (In (filter_family (neighborhood_filter x))
-  (inverse_image f V)).
-apply H.
-constructor.
-apply H0; trivial.
+split; intros.
++ intros S ?. destruct H6. apply H3 in H6. constructor.
+  apply H5. constructor; trivial.
++ intros N ?. apply (H3 (neighborhood_filter x0) _).
+  - red. auto with sets.
+  - constructor; trivial.
 Qed.
 
-Lemma func_preserving_filter_limits_is_continuous:
-  forall (X Y:TopologicalSpace) (f:point_set X -> point_set Y)
-    (x:point_set X),
-  (forall F:Filter (point_set X), filter_limit F x ->
-                     filter_limit (filter_direct_image f F) (f x)) ->
-  continuous_at f x.
+Corollary continuous_equiv_preserves_filter_limits :
+  ∀ {X Y:Type} `{TopologicalSpace X} `{TopologicalSpace Y}
+  (f:X → Y),
+  continuous f ↔ ∀ F:Family X, Filter F → ∀ x0:X, filter_limit F x0 →
+                 filter_limit (filter_direct_image f F) (f x0).
 Proof.
-intros.
-assert (filter_limit (filter_direct_image f (neighborhood_filter x))
-  (f x)).
-apply H.
-red; auto with sets.
-red; intros V ?.
-assert (In (filter_family (filter_direct_image f (neighborhood_filter x)))
-  V).
-apply H0.
-constructor.
-trivial.
-destruct H2.
-destruct H2.
-trivial.
+intros. rewrite pointwise_continuity. split; intros.
++ pose proof (H3 x0).
+  rewrite continuous_at_equiv_preserves_filter_limits in H6. auto.
++ rewrite continuous_at_equiv_preserves_filter_limits. auto.
 Qed.
