@@ -1,282 +1,159 @@
+Require Import EnsemblesUtf8.
 Require Export FilterLimits.
 Require Export Nets.
 
-Section net_tail_filter.
+Section net_to_filter.
 
-Variable X:TopologicalSpace.
-Variable J:DirectedSet.
-Variable x:Net J X.
-Hypothesis J_nonempty: inhabited (DS_set J).
+Context {X:Type} `{TopologicalSpace X}
+  (J:Type) `{DirectedSet J} (x:Net J X).
+Hypothesis J_nonempty: inhabited J.
 
-Definition net_tail (j:DS_set J) :=
-  Im [ i:DS_set J | DS_ord j i ] x.
+Definition net_to_filter : Family X :=
+[ S : Ensemble X | for large j:J, x j ∈ S ].
 
-Definition tail_filter_basis : Family (point_set X) :=
-  Im Full_set net_tail.
-
-Definition tail_filter : Filter (point_set X).
-refine (Build_Filter_from_basis tail_filter_basis _ _ _).
-destruct J_nonempty as [j].
-exists (net_tail j).
-exists j; trivial.
-constructor.
-intro.
-inversion H as [j].
-assert (In Empty_set (x j)).
-rewrite H1.
-exists j; trivial.
-constructor.
-apply preord_refl; apply DS_ord_cond.
-destruct H3.
-
-intros.
-destruct H.
-destruct H0.
-destruct (DS_join_cond x0 x1) as [k []].
-exists (net_tail k); split.
-exists k; trivial.
-constructor.
-red; intros.
-constructor.
-destruct H5 as [i0].
-destruct H5.
-rewrite H1.
-exists i0; trivial.
-constructor.
-apply preord_trans with k; trivial.
-apply DS_ord_cond.
-destruct H5 as [i0].
-destruct H5.
-rewrite H2.
-exists i0; trivial.
-constructor.
-apply preord_trans with k; trivial.
-apply DS_ord_cond.
-Defined.
-
-Lemma net_limit_impl_tail_filter_limit: forall x0:point_set X,
-  net_limit x x0 -> filter_limit tail_filter x0.
+Global Instance net_to_filter_filter : Filter net_to_filter.
 Proof.
-intros.
-red; intros.
-red; intros U ?.
-destruct H0.
-destruct H0 as [V []].
-destruct H0.
-pose proof (H V H0 H2).
-destruct H3 as [j0].
-apply filter_upward_closed with (net_tail j0).
 constructor.
-exists (net_tail j0).
-split.
-exists j0; trivial.
-constructor.
-auto with sets.
-intros y ?.
-apply H1.
-destruct H4 as [j].
-rewrite H5.
-apply H3.
-destruct H4; assumption.
++ intros. destruct H3, H4; constructor. destruct H3 as [j0].
+  destruct H4 as [j1]. destruct (DS_vee_compat j0 j1) as [j2].
+  exists j2. intros; constructor.
+  - apply H3. etransitivity; eauto.
+  - apply H4. etransitivity; eauto.
++ intros. destruct H3. constructor. destruct H3 as [j0].
+  exists j0; auto.
++ constructor. destruct J_nonempty as [j0]. exists j0.
+  intros; constructor.
++ intro. destruct H3. destruct H3 as [j0].
+  refine (let H4 := H3 j0 _ in _).
+  - reflexivity.
+  - destruct H4.
 Qed.
 
-Lemma tail_filter_limit_impl_net_limit: forall x0:point_set X,
-  filter_limit tail_filter x0 -> net_limit x x0.
+(* Basis of tails of the net *)
+Inductive net_tail (j:J) : Ensemble X :=
+| net_tail_intro : ∀ i:J, j ≤ i → x i ∈ net_tail j.
+
+Inductive net_tail_basis : Family X :=
+| net_tail_basis_intro : ∀ j:J, net_tail j ∈ net_tail_basis.
+
+Global Instance net_to_filter_tail_basis :
+  FilterBasis net_to_filter net_tail_basis.
 Proof.
-intros.
-intros U ? ?.
-assert (In (filter_family tail_filter) U).
-apply H.
 constructor.
-apply open_neighborhood_is_neighborhood.
-split; trivial.
-destruct H2.
-destruct H2 as [T []].
-destruct H2 as [j0].
-exists j0.
-intros.
-apply H3.
-rewrite H4.
-exists j; trivial.
-constructor; assumption.
++ intros T ?. destruct H3. constructor. exists j.
+  exact (net_tail_intro j).
++ intros. destruct H3. destruct H3 as [j0]. exists (net_tail j0).
+  - constructor.
+  - intros y ?. destruct H4. auto.
 Qed.
 
-Lemma net_cluster_point_impl_tail_filter_cluster_point:
-  forall x0:point_set X,
-  net_cluster_point x x0 -> filter_cluster_point tail_filter x0.
+Lemma net_to_filter_limits : ∀ x0 : X,
+  filter_limit net_to_filter x0 ↔ net_limit x x0.
 Proof.
-intros.
-red; intros.
-destruct H0.
-destruct H0 as [T []].
-destruct H0 as [j0].
-apply meets_every_open_neighborhood_impl_closure.
-intros.
-pose proof (H U H3 H4).
-destruct (H5 j0) as [j' []].
-exists (x j').
-constructor; trivial.
-apply H1.
-rewrite H2.
-exists j'.
-constructor; trivial.
-reflexivity.
+split; intros.
++ red; intros. apply H3. constructor; trivial.
++ red; red; intros N ?. destruct H4. constructor. apply H3. trivial.
 Qed.
 
-Lemma tail_filter_cluster_point_impl_net_cluster_point:
-  forall x0:point_set X,
-  filter_cluster_point tail_filter x0 -> net_cluster_point x x0.
+Lemma net_to_filter_cluster_points : ∀ x0 : X,
+  filter_cluster_point net_to_filter x0 ↔ net_cluster_point x x0.
 Proof.
-intros.
-red; intros.
-red; intros.
-assert (In (closure (net_tail i)) x0).
-apply H.
-constructor.
-exists (net_tail i).
-split.
-exists i; trivial.
-constructor.
-auto with sets.
-pose proof (closure_impl_meets_every_open_neighborhood _ _ _ H2
-  U H0 H1).
-destruct H3.
-destruct H3.
-destruct H3.
-exists x1; split.
-destruct H3; trivial.
-rewrite <- H5; trivial.
+split; intros.
++ red; intros. red; intros. refine (let H5 := H3 (net_tail i) _ in _).
+  - apply filter_basis_elements. constructor.
+  - destruct H4 as [U].
+    rewrite closure_equiv_meets_every_open_neighborhood in H5.
+    destruct (H5 U H4 H6) as [y]. destruct H8. destruct H8.
+    exists i0; auto.
++ red; intros. rewrite closure_equiv_meets_every_open_neighborhood.
+  intros. destruct H4. destruct H4 as [j0].
+  refine (let H7 := H3 U _ j0 in _).
+  - apply open_neighborhood_is_neighborhood; constructor; trivial.
+  - destruct H7 as [j1]. exists (x j1). constructor; auto.
 Qed.
 
-End net_tail_filter.
-
-Implicit Arguments net_tail [[X] [J]].
-Implicit Arguments tail_filter [[X] [J]].
+End net_to_filter.
 
 Section filter_to_net.
 
-Variable X:TopologicalSpace.
-Variable F:Filter (point_set X).
+Context {X:Type} `{TopologicalSpace X} (F:Family X) `{!Filter F}.
 
-Record filter_to_net_DS_set : Type := {
-  ftn_S : Ensemble (point_set X);
-  ftn_x : point_set X;
-  ftn_S_in_F : In (filter_family F) ftn_S;
-  ftn_x_in_S : In ftn_S ftn_x
+Record filter_to_net_DS : Type := {
+  ftn_S : Ensemble X;
+  ftn_x : X;
+  ftn_S_in_F : ftn_S ∈ F;
+  ftn_x_in_S : ftn_x ∈ ftn_S
 }.
 
-Definition filter_to_net_DS : DirectedSet.
-refine (Build_DirectedSet filter_to_net_DS_set
-  (fun x1 x2:filter_to_net_DS_set =>
-     Included (ftn_S x2) (ftn_S x1)) _ _).
+Global Instance filter_to_net_DS_ord : Le filter_to_net_DS :=
+fun x1 x2 => ftn_S x2 ⊆ ftn_S x1.
+
+Global Instance filter_to_net_DS_DS : DirectedSet filter_to_net_DS.
+Proof.
 constructor.
-red; intros.
-auto with sets.
-red; intros.
-auto with sets.
-intros.
-destruct i.
-destruct j.
-assert (In (filter_family F) (Intersection ftn_S0 ftn_S1)).
-apply filter_intersection; trivial.
-assert (Inhabited (Intersection ftn_S0 ftn_S1)).
-apply NNPP; red; intro.
-assert (Intersection ftn_S0 ftn_S1 = Empty_set).
-apply Extensionality_Ensembles; split; red; intros.
-contradiction H0.
-exists x; trivial.
-destruct H1.
-rewrite H1 in H.
-contradiction (filter_empty _ F).
-destruct H0 as [ftn_x'].
-exists (Build_filter_to_net_DS_set
-  (Intersection ftn_S0 ftn_S1) ftn_x' H H0).
-simpl.
-split; auto with sets.
-Defined.
++ constructor.
+  - intro x. red. red. reflexivity.
+  - intros x y z ? ?. do 2 red in H1, H2; do 2 red.
+    etransitivity; eauto.
++ intros. destruct i as [S1 x1 ? ?], j as [S2 x2 ? ?].
+  assert (S1 ∩ S2 ∈ F) by (apply filter_intersection; trivial).
+  assert (Inhabited (S1 ∩ S2)).
+  - apply NNPP; intro. assert (S1 ∩ S2 = ∅).
+    * apply Extensionality_Ensembles; split; auto with sets.
+      intros x ?. exfalso. apply H2. exists x; trivial.
+    * rewrite H3 in H1. revert H1. apply filter_empty.
+  - destruct H2 as [y]. exists {| ftn_S := S1 ∩ S2;
+    ftn_x := y; ftn_S_in_F := H1; ftn_x_in_S := H2 |}.
+    * do 2 red. simpl. auto with sets.
+    * do 2 red. simpl. auto with sets.
+Qed.
 
 Definition filter_to_net : Net filter_to_net_DS X :=
   ftn_x.
 
-Lemma filter_limit_impl_filter_to_net_limit: forall x0:point_set X,
-  filter_limit F x0 -> net_limit filter_to_net x0.
+Lemma filter_to_net_limits : ∀ x0 : X,
+  net_limit filter_to_net x0 ↔ filter_limit F x0.
 Proof.
-intros.
-intros U ? ?.
-assert (In (filter_family F) U).
-apply H.
-constructor.
-apply open_neighborhood_is_neighborhood.
-split; trivial.
-exists (Build_filter_to_net_DS_set U x0 H2 H1).
-destruct j.
-simpl.
-auto.
+split; intros.
++ intros N ?. destruct H2. destruct (H1 N H2).
+  destruct i0 as [S x ? ?].
+  apply filter_upward_closed with (1 := ftn_S_in_F0).
+  intros y ?. set (j := {| ftn_S := S; ftn_x := y; ftn_S_in_F := ftn_S_in_F0;
+                           ftn_x_in_S := H4 |}).
+  refine (let H5 := H3 j _ in _).
+  - do 2 red; simpl. reflexivity.
+  - exact H5.
++ intros N ?. assert (x0 ∈ N) by (destruct H2; auto).
+  assert (N ∈ F) by (apply H1; constructor; auto).
+  exists {| ftn_S := N; ftn_x := x0; ftn_S_in_F := H4; ftn_x_in_S := H3 |}.
+  intros. destruct i. do 2 red in H5; simpl in H5. simpl. auto.
 Qed.
 
-Lemma filter_to_net_limit_impl_filter_limit: forall x0:point_set X,
-  net_limit filter_to_net x0 -> filter_limit F x0.
+Lemma filter_to_net_cluster_points : ∀ x0 : X,
+  net_cluster_point filter_to_net x0 ↔ filter_cluster_point F x0.
 Proof.
-intros.
-intros U ?.
-destruct H0.
-destruct H0 as [V []].
-apply filter_upward_closed with V; trivial.
-destruct H0.
-destruct (H V H0 H2) as [[]].
-apply filter_upward_closed with ftn_S0.
-trivial.
-red; intros.
-pose proof (H3
-  (Build_filter_to_net_DS_set ftn_S0 x ftn_S_in_F0 H4)).
-simpl in H5.
-apply H5; auto with sets.
-Qed.
-
-Lemma filter_cluster_point_impl_filter_to_net_cluster_point:
-  forall x0:point_set X,
-  filter_cluster_point F x0 -> net_cluster_point filter_to_net x0.
-Proof.
-intros.
-red; intros.
-red; intros.
-destruct i.
-pose proof (H ftn_S0 ftn_S_in_F0).
-pose proof (closure_impl_meets_every_open_neighborhood _ _
-  _ H2 U H0 H1).
-destruct H3.
-destruct H3.
-exists (Build_filter_to_net_DS_set ftn_S0 x ftn_S_in_F0 H3).
-simpl.
-split; auto with sets.
-Qed.
-
-Lemma filter_to_net_cluster_point_impl_filter_cluster_point:
-  forall x0:point_set X,
-  net_cluster_point filter_to_net x0 -> filter_cluster_point F x0.
-Proof.
-intros.
-red; intros.
-apply meets_every_open_neighborhood_impl_closure; intros.
-assert (Inhabited S).
-apply NNPP; red; intro.
-assert (S = Empty_set).
-apply Extensionality_Ensembles; split; red; intros.
-contradiction H3.
-exists x; trivial.
-destruct H4.
-rewrite H4 in H0.
-contradiction (filter_empty _ F).
-destruct H3 as [y].
-pose (j0 := Build_filter_to_net_DS_set S y H0 H3).
-destruct (H U H1 H2 j0) as [j' []].
-exists (filter_to_net j').
-constructor; trivial.
-destruct j'.
-simpl.
-simpl in H5.
-simpl in H4.
-auto.
+split; intros.
++ intros S ?. rewrite closure_equiv_meets_every_open_neighborhood.
+  intros. assert (Inhabited S).
+  - apply NNPP; intro. assert (S = ∅).
+    * apply Extensionality_Ensembles; split; auto with sets.
+      intros x ?. exfalso. apply H5. exists x; trivial.
+    * rewrite H6 in H2. revert H2. apply filter_empty.
+  - destruct H5 as [y]. set (i := {| ftn_S := S; ftn_x := y;
+      ftn_S_in_F := H2; ftn_x_in_S := H5 |}).
+    assert (neighborhood U x0) by
+    (apply open_neighborhood_is_neighborhood; constructor; trivial).
+    pose proof (H1 U H6). destruct (H7 i) as [j].
+    destruct j. do 2 red in H8; simpl in H8. simpl in H9.
+    exists ftn_x0. constructor; auto.
++ red; intros. red; intros. destruct i.
+  pose proof (H1 ftn_S0 ftn_S_in_F0).
+  rewrite closure_equiv_meets_every_open_neighborhood in H3.
+  destruct H2. pose proof (H3 U H2 H4). destruct H6. destruct H6.
+  exists {| ftn_S := ftn_S0; ftn_x := x; ftn_S_in_F := ftn_S_in_F0;
+            ftn_x_in_S := H6 |}.
+  - do 2 red; simpl. reflexivity.
+  - simpl. auto.
 Qed.
 
 End filter_to_net.
