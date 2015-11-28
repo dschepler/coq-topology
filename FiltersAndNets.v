@@ -23,10 +23,10 @@ constructor.
   exists j0; auto.
 + constructor. destruct J_nonempty as [j0]. exists j0.
   intros; constructor.
-+ intro. destruct H3. destruct H3 as [j0].
++ intros. destruct H3. destruct H3 as [j0].
   refine (let H4 := H3 j0 _ in _).
   - reflexivity.
-  - destruct H4.
+  - exists (x j0); assumption.
 Qed.
 
 (* Basis of tails of the net *)
@@ -97,15 +97,11 @@ constructor.
     etransitivity; eauto.
 + intros. destruct i as [S1 x1 ? ?], j as [S2 x2 ? ?].
   assert (S1 ∩ S2 ∈ F) by (apply filter_intersection; trivial).
-  assert (Inhabited (S1 ∩ S2)).
-  - apply NNPP; intro. assert (S1 ∩ S2 = ∅).
-    * apply Extensionality_Ensembles; split; auto with sets.
-      intros x ?. exfalso. apply H2. exists x; trivial.
-    * rewrite H3 in H1. revert H1. apply filter_empty.
-  - destruct H2 as [y]. exists {| ftn_S := S1 ∩ S2;
+  pose proof (filter_elems_inh _ H1). destruct H2 as [y].
+  exists {| ftn_S := S1 ∩ S2;
     ftn_x := y; ftn_S_in_F := H1; ftn_x_in_S := H2 |}.
-    * do 2 red. simpl. auto with sets.
-    * do 2 red. simpl. auto with sets.
+  - do 2 red. simpl. auto with sets.
+  - do 2 red. simpl. auto with sets.
 Qed.
 
 Definition filter_to_net : Net filter_to_net_DS X :=
@@ -134,18 +130,14 @@ Lemma filter_to_net_cluster_points : ∀ x0 : X,
 Proof.
 split; intros.
 + intros S ?. rewrite closure_equiv_meets_every_open_neighborhood.
-  intros. assert (Inhabited S).
-  - apply NNPP; intro. assert (S = ∅).
-    * apply Extensionality_Ensembles; split; auto with sets.
-      intros x ?. exfalso. apply H5. exists x; trivial.
-    * rewrite H6 in H2. revert H2. apply filter_empty.
-  - destruct H5 as [y]. set (i := {| ftn_S := S; ftn_x := y;
+  intros. assert (Inhabited S) by auto using filter_elems_inh.
+  destruct H5 as [y]. set (i := {| ftn_S := S; ftn_x := y;
       ftn_S_in_F := H2; ftn_x_in_S := H5 |}).
-    assert (neighborhood U x0) by
+  assert (neighborhood U x0) by
     (apply open_neighborhood_is_neighborhood; constructor; trivial).
-    pose proof (H1 U H6). destruct (H7 i) as [j].
-    destruct j. do 2 red in H8; simpl in H8. simpl in H9.
-    exists ftn_x0. constructor; auto.
+  pose proof (H1 U H6). destruct (H7 i) as [j].
+  destruct j. do 2 red in H8; simpl in H8. simpl in H9.
+  exists ftn_x0. constructor; auto.
 + red; intros. red; intros. destruct i.
   pose proof (H1 ftn_S0 ftn_S_in_F0).
   rewrite closure_equiv_meets_every_open_neighborhood in H3.

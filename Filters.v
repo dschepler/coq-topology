@@ -2,6 +2,7 @@ Require Export Families.
 Require Import Utf8.
 Require Import EnsemblesSpec.
 Require Import EnsemblesUtf8.
+Require Import EnsemblesInstances.
 
 Class Filter {X:Type} (F:Family X) : Prop := {
   filter_intersection : ∀ S1 S2 : Ensemble X,
@@ -9,7 +10,7 @@ Class Filter {X:Type} (F:Family X) : Prop := {
   filter_upward_closed : ∀ S1 S2 : Ensemble X,
     S1 ∈ F → S1 ⊆ S2 → S2 ∈ F;
   filter_full : Full_set ∈ F;
-  filter_empty : ¬ (∅ ∈ F)
+  filter_elems_inh : ∀ S : Ensemble X, S ∈ F → Inhabited S
 }.
 
 Require Export FiniteIntersections.
@@ -40,6 +41,7 @@ Section filter_from_basis.
 Variable X:Type.
 Variable B:Family X.
 Hypothesis B_nonempty: Inhabited B.
+Hypothesis B_elem_inh: ∀ S : Ensemble X, S ∈ B → Inhabited S.
 Hypothesis B_empty: ¬ (∅ ∈ B).
 Hypothesis B_basis_cond : ∀ S1 S2 : Ensemble X, S1 ∈ B → S2 ∈ B →
   contains_basis_element (S1 ∩ S2) B.
@@ -60,9 +62,7 @@ constructor.
 + destruct B_nonempty as [S]. constructor. exists S.
   - trivial.
   - red; intros. constructor.
-+ intro. destruct H as [ [S] ]. replace S with (@Empty_set X) in H.
-  - auto.
-  - apply Extensionality_Ensembles; auto with sets.
++ intros. destruct H as [ [S'] ]. rewrite <- H0. apply B_elem_inh; auto.
 Qed.
 
 Global Instance filter_from_basis_basis :
@@ -101,7 +101,7 @@ Global Instance filter_from_subbasis_filter :
 Proof.
 apply filter_from_basis_filter.
 + exists Full_set. constructor.
-+ intro. destruct (B_subbasis_cond _ H). destruct H0.
++ assumption.
 + intros. exists (S1 ∩ S2).
   - constructor 3; trivial.
   - auto with sets.
@@ -112,7 +112,6 @@ Global Instance filter_from_subbasis_subbasis :
 Proof.
 constructor.
 + unfold Build_Filter_from_subbasis.
-Require Import EnsemblesInstances.
   rewrite <- filter_basis_elements. intros S ?.
   constructor; trivial.
 + apply filter_basis_cond.
@@ -142,8 +141,8 @@ constructor.
 + intros. destruct H. constructor. apply filter_upward_closed with (1 := H).
   apply inverse_image_increasing. trivial.
 + constructor. rewrite inverse_image_full. apply filter_full.
-+ intro. destruct H. rewrite inverse_image_empty in H. revert H.
-  apply filter_empty.
++ intros. destruct H. destruct (filter_elems_inh _ H) as [x].
+  destruct H0. exists (f x); trivial.
 Qed.
 
 End filter_direct_image.
@@ -178,8 +177,7 @@ constructor.
 + replace (@Full_set X) with (@Full_set X ∩ @Full_set X).
   - constructor; apply filter_full.
   - apply Extensionality_Ensembles; split; intros x ?; repeat constructor.
-+ intro. inversion H. destruct (F_G_compat S T H1 H2).
-  rewrite H0 in H3. destruct H3.
++ intros. destruct H. auto.
 Qed.
 
 End filter_sum.
@@ -205,8 +203,7 @@ constructor.
 + exists Full_set.
   - apply filter_full.
   - intros x ?; constructor.
-+ intro. inversion H. pose proof (F_A_compat S H0).
-  destruct H3. apply H1 in H3. destruct H3.
++ intros. destruct H. rewrite <- H0. auto.
 Qed.
 
 Lemma filter_add_extension : F ⊆ filter_add.
@@ -302,9 +299,9 @@ constructor.
     econstructor; eauto using filter_upward_closed.
   - constructor 2. eauto using filter_upward_closed.
 + constructor 2. apply filter_full.
-+ intro. inversion H.
-  - revert H1. pose proof (uePO_filter G). apply filter_empty.
-  - revert H0. apply filter_empty.
++ intros. destruct H.
+  - eauto using @filter_elems_inh, uePO_filter.
+  - eauto using @filter_elems_inh.
 Qed.
 Next Obligation.
 apply ultrafilter_extension_PO_chain_union_intro2.

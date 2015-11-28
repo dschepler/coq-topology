@@ -14,7 +14,7 @@ intros. constructor.
 + intros. destruct H1, H2. constructor. auto using neighborhood_intersection.
 + intros. destruct H1. constructor. eauto using neighborhood_upward_closed.
 + constructor. apply neighborhood_full.
-+ intro. destruct H1. destruct H1. apply H3 in H2. destruct H2.
++ intros. destruct H1. destruct H1. exists x0; auto.
 Qed.
 
 Definition filter_limit {X:Type} `{OpenSets X}
@@ -33,11 +33,7 @@ intros. red; intros. rewrite closure_equiv_meets_every_open_neighborhood.
 intros. assert (U ∈ F).
 + apply H1. constructor. apply open_neighborhood_is_neighborhood.
   constructor; trivial.
-+ assert (S ∩ U ∈ F) by auto using filter_intersection.
-  apply NNPP; intro. assert (S ∩ U = ∅).
-  - apply Extensionality_Ensembles; split; auto with sets.
-    intros ? [x ? ?]. exfalso. apply H7. exists x. constructor; trivial.
-  - rewrite H8 in H6. revert H6. apply filter_empty.
++ auto using filter_elems_inh, filter_intersection.
 Qed.
 
 Lemma ultrafilter_cluster_point_is_limit :
