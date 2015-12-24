@@ -1,213 +1,219 @@
 Require Export TopologicalSpaces.
-Require Import InteriorsClosures.
+Require Export InteriorsClosures.
+Require Import Neighborhoods.
+Require Import EnsemblesUtf8.
 
-Definition T0_sep (X:TopologicalSpace) : Prop :=
-  forall x y:point_set X, x <> y ->
-  (exists U:Ensemble (point_set X), open U /\ In U x /\ ~ In U y) \/
-  (exists U:Ensemble (point_set X), open U /\ ~ In U x /\ In U y).
+Section sep_axioms.
 
-Definition T1_sep (X:TopologicalSpace) : Prop :=
-  forall x:point_set X, closed (Singleton x).
+Context (X:Type) `{TopologicalSpace X}.
 
-Definition Hausdorff (X:TopologicalSpace) : Prop :=
-  forall x y:point_set X, x <> y ->
-    exists U:Ensemble (point_set X),
-    exists V:Ensemble (point_set X),
-  open U /\ open V /\ In U x /\ In V y /\
-  Intersection U V = Empty_set.
+Inductive open_sets_distinguish (x y:X) : Prop :=
+| os_dist_intro1 : ∀ U : Ensemble X, open U → x ∈ U → ¬ (y ∈ U) →
+  open_sets_distinguish x y
+| os_dist_intro2 : ∀ U : Ensemble X, open U → ¬ (x ∈ U) → y ∈ U →
+  open_sets_distinguish x y.
+
+Class T0_sep : Prop :=
+open_sets_distinguish_points : ∀ x y:X, x ≠ y → open_sets_distinguish x y.
+
+Class T1_sep : Prop :=
+singleton_closed : ∀ x:X, closed [[ x ]].
+
+Inductive open_sets_separate_points (x y:X) : Prop :=
+| os_sep_points_intro : ∀ U V : Ensemble X, open U → open V →
+  x ∈ U → y ∈ V → U ∩ V = ∅ → open_sets_separate_points x y.
+
+Class Hausdorff : Prop :=
+open_sets_separate_distinct_points : ∀ x y:X, x ≠ y →
+  open_sets_separate_points x y.
 Definition T2_sep := Hausdorff.
 
-Definition T3_sep (X:TopologicalSpace) : Prop :=
-  T1_sep X /\
-  forall (x:point_set X) (F:Ensemble (point_set X)),
-  closed F -> ~ In F x -> exists U:Ensemble (point_set X),
-                          exists V:Ensemble (point_set X),
-        open U /\ open V /\ In U x /\ Included F V /\
-        Intersection U V = Empty_set.
+Inductive open_sets_separate_point_and_set (x:X) (F:Ensemble X) : Prop :=
+| os_sep_point_set_intro : ∀ U V : Ensemble X, open U → open V →
+  x ∈ U → F ⊆ V → U ∩ V = ∅ → open_sets_separate_point_and_set x F.
 
-Definition normal_sep (X:TopologicalSpace) : Prop :=
-  T1_sep X /\
-  forall (F G:Ensemble (point_set X)),
-  closed F -> closed G -> Intersection F G = Empty_set ->
-  exists U:Ensemble (point_set X), exists V:Ensemble (point_set X),
-  open U /\ open V /\ Included F U /\ Included G V /\
-  Intersection U V = Empty_set.
-Definition T4_sep := normal_sep.
+Class T3_sep : Prop := {
+  T3_T1 :> T1_sep;
+  open_sets_separate_points_and_closed_sets : ∀ (x:X) (F:Ensemble X),
+    closed F → ¬ (x ∈ F) → open_sets_separate_point_and_set x F
+}.
 
-Lemma T1_sep_impl_T0_sep: forall X:TopologicalSpace,
-  T1_sep X -> T0_sep X.
+Inductive open_sets_separate_sets (F G:Ensemble X) : Prop :=
+| os_sep_sets_intro : ∀ U V : Ensemble X, open U → open V →
+  F ⊆ U → G ⊆ V → U ∩ V = ∅ → open_sets_separate_sets F G.
+
+Class T4_sep : Prop := {
+  T4_T1 :> T1_sep;
+  open_sets_separate_closed_sets : ∀ (F G:Ensemble X), closed F → closed G →
+    F ∩ G = ∅ → open_sets_separate_sets F G
+}.
+
+Definition normal_sep := T4_sep.
+
+Global Instance T1_impl_T0 : T1_sep → T0_sep.
 Proof.
-intros.
-red; intros.
-left.
-exists (Complement (Singleton y)); repeat split.
-apply H.
-repeat red; intro.
-destruct H1; contradiction H0; trivial.
-red; intro.
-repeat red in H1.
-apply H1; constructor.
+intros; red; intros. constructor 1 with (U := Complement [[y]]).
++ apply H1.
++ intro. destruct H3. apply H2. reflexivity.
++ intro. apply H3. constructor.
 Qed.
 
-Lemma Hausdorff_impl_T1_sep: forall X:TopologicalSpace,
-  Hausdorff X -> T1_sep X.
+Global Instance Hausdorff_impl_T1 : Hausdorff → T1_sep.
 Proof.
-intros.
-red; intros.
-assert (closure (Singleton x) = Singleton x).
-apply Extensionality_Ensembles; split.
-red; intros.
-assert (x = x0).
-apply NNPP.
-red; intro.
-pose proof (H x x0 H1).
-destruct H2 as [U [V ?]].
-intuition.
-assert (In (interior (Complement (Singleton x))) x0).
-exists V.
-constructor; split; trivial.
-red; intros.
-red; red; intro.
-destruct H8.
-assert (In Empty_set x).
-rewrite <- H7.
-constructor; trivial.
-destruct H8.
-assumption.
-rewrite interior_complement in H6.
-contradiction H6; exact H0.
-destruct H1; constructor.
-apply closure_inflationary.
-
-rewrite <- H0; apply closure_closed.
+intros; red; intros. red. rewrite open_equiv_neighborhood_of_every_element.
+intros y ?. destruct (H1 x y) as [U V].
++ intro. subst. apply H2. constructor.
++ exists V; auto. intros z ?. intro. destruct H9.
+  assert (x ∈ U ∩ V) by (constructor; trivial).
+  rewrite H7 in H9. destruct H9.
 Qed.
 
-Lemma T3_sep_impl_Hausdorff: forall X:TopologicalSpace,
-  T3_sep X -> Hausdorff X.
+Global Instance T3_impl_Hausdorff : T3_sep → Hausdorff.
 Proof.
-intros.
-destruct H.
-red; intros.
-pose proof (H0 x (Singleton y)).
-match type of H2 with | ?A -> ?B -> ?C => assert C end.
-apply H2.
-apply H.
-red; intro.
-destruct H3.
-contradiction H1; trivial.
-destruct H3 as [U [V [? [? [? [? ?]]]]]].
-exists U; exists V; repeat split; auto with sets.
+intros; red; intros.
+destruct (open_sets_separate_points_and_closed_sets x [[y]]) as [U V].
++ apply singleton_closed.
++ intro. destruct H3. apply H2. reflexivity.
++ exists U V; trivial. apply H6. constructor.
 Qed.
 
-Lemma normal_sep_impl_T3_sep: forall X:TopologicalSpace,
-  normal_sep X -> T3_sep X.
+Global Instance T4_impl_T3 : T4_sep → T3_sep.
 Proof.
-intros.
-destruct H.
-split; trivial.
-intros.
-pose proof (H0 (Singleton x) F).
-match type of H3 with | ?A -> ?B -> ?C -> ?D => assert D end.
-apply H3; trivial.
-apply Extensionality_Ensembles; split; auto with sets.
-red; intros.
-destruct H4 as [? []].
-contradiction H2.
-destruct H4 as [U [V [? [? [? [? ?]]]]]].
-exists U; exists V; repeat split; auto with sets.
+intros. constructor.
++ typeclasses eauto.
++ intros. destruct (open_sets_separate_closed_sets [[x]] F) as [U V];
+  trivial.
+  - apply singleton_closed.
+  - apply Extensionality_Ensembles; split; auto with sets.
+    intros y ?. destruct H4. destruct H4. contradiction.
+  - exists U V; trivial. apply H6. constructor.
 Qed.
 
-Section Hausdorff_and_nets.
+Section Hausdorff_and_limits.
 Require Export Nets.
+Require Export FilterLimits.
 
-Lemma Hausdorff_impl_net_limit_unique:
-  forall {X:TopologicalSpace} {I:DirectedSet} (x:Net I X),
-    Hausdorff X -> uniqueness (net_limit x).
+Class FilterLimitsUnique : Prop :=
+| uniqueness_of_filter_limit : ∀ F : Family X, Filter F → uniqueness (filter_limit F).
+
+Class FilterLimitIsUniqueClusterPoint : Prop :=
+| filter_limit_is_unique_cluster_point : ∀ F : Family X, Filter F →
+  ∀ x:X, filter_limit F x -> ∀ y:X, filter_cluster_point F y → x = y.
+
+Class NetLimitsUnique : Prop :=
+| uniqueness_of_net_limit : ∀ {I : Type} `{DirectedSet I} (x : Net I X),
+  uniqueness (net_limit x).
+
+Class NetLimitIsUniqueClusterPoint : Prop :=
+| net_limit_is_unique_cluster_point : ∀ {I : Type} `{DirectedSet I} (x : Net I X),
+  ∀ x0 : X, net_limit x x0 → ∀ x1 : X, net_cluster_point x x1 → x0 = x1.
+
+Global Instance hausdorff_impl_uniqueness_of_filter_limit :
+  Hausdorff → FilterLimitsUnique.
 Proof.
-intros.
-red; intros x1 x2 ? ?.
-apply NNPP; intro.
-destruct (H x1 x2) as [U [V [? [? [? [? ?]]]]]]; trivial.
-destruct (H0 U H3 H5) as [i].
-destruct (H1 V H4 H6) as [j].
-destruct (DS_join_cond i j) as [k [? ?]].
-assert (In (Intersection U V) (x k)).
-constructor; (apply H8 || apply H9); trivial.
-rewrite H7 in H12.
-destruct H12.
+intros ? F ? x y ? ?. apply NNPP; intro.
+destruct (open_sets_separate_distinct_points x y H5).
+let H := fresh in let H0 := fresh in refine (let H := H3 U _ in
+  let H0 := H4 V _ in _).
++ constructor. apply open_neighborhood_is_neighborhood. constructor; trivial.
++ constructor. apply open_neighborhood_is_neighborhood. constructor; trivial.
++ pose proof (filter_intersection _ _ H11 H12). rewrite H10 in H13.
+  pose proof (filter_elems_inh _ H13). destruct H14. destruct H14.
 Qed.
 
-Lemma Hausdorff_impl_net_limit_is_unique_cluster_point:
-  forall {X:TopologicalSpace} {I:DirectedSet} (x:Net I X)
-    (x0:point_set X), Hausdorff X -> net_limit x x0 ->
-    forall y:point_set X, net_cluster_point x y -> y = x0.
+Global Instance unique_filter_lim_impl_filter_limit_is_unique_cluster_point :
+  FilterLimitsUnique → FilterLimitIsUniqueClusterPoint.
 Proof.
-intros.
-destruct (net_cluster_point_impl_subnet_converges _ _ x y H1) as
-  [J [x' [? ?]]].
-destruct (H0 Full_set).
-apply open_full.
-constructor.
-exists; exact x1.
-assert (net_limit x' x0).
-apply subnet_limit with _ x; trivial.
-apply Hausdorff_impl_net_limit_unique with x'; trivial.
+intros ? F ? x ? y ?. set (G := filter_sum F (neighborhood_filter y)).
+let H := fresh in refine (let H := @filter_sum_filter _ _ _ _ _ _ : Filter G in _).
++ intros. destruct H6. apply H4 in H5. destruct H6 as [U].
+  rewrite closure_equiv_meets_every_open_neighborhood in H5. rewrite <- H8.
+  apply H5; auto.
++ assert (filter_limit G x).
+  - red. unfold G. rewrite <- filter_sum_l; auto.
+    apply neighborhood_filter_filter.
+  - assert (filter_limit G y).
+    * red. unfold G. rewrite <- filter_sum_r; auto with sets.
+    * red in H1. unfold uniqueness in H1. eauto.
 Qed.
 
-Lemma net_limit_is_unique_cluster_point_impl_Hausdorff:
-  forall (X:TopologicalSpace),
-  (forall (I:DirectedSet) (x:Net I X) (x0 y:point_set X),
-  net_limit x x0 -> net_cluster_point x y ->
-  y = x0) -> Hausdorff X.
+(* Intentionally not an instance, to avoid search loops *)
+Lemma filter_limit_is_unique_cluster_point_impl_hausdorff :
+  FilterLimitIsUniqueClusterPoint → Hausdorff.
 Proof.
-intros.
-red; intros.
-assert (~ net_cluster_point (neighborhood_net _ x) y).
-red; intro.
-contradiction H0.
-symmetry.
-apply H with _ (neighborhood_net _ x).
-apply neighborhood_net_limit.
-assumption.
-
-apply not_all_ex_not in H1.
-destruct H1 as [V].
-apply imply_to_and in H1.
-destruct H1.
-apply imply_to_and in H2.
-destruct H2.
-apply not_all_ex_not in H3.
-destruct H3 as [[U]].
-exists U; exists V; repeat split; trivial.
-apply Extensionality_Ensembles; split; auto with sets.
-red; intros.
-destruct H4.
-contradiction H3.
-exists (intro_neighborhood_net_DS X x U x0 o i H4).
-split.
-simpl; auto with sets.
-simpl.
-trivial.
+intros ? x y ?. apply NNPP; intro. contradict H2.
+apply H1 with (F := neighborhood_filter x).
++ apply neighborhood_filter_filter.
++ red. auto with sets.
++ intros N [?]. destruct H2 as [U]. rewrite <- H5.
+  rewrite closure_equiv_meets_every_open_neighborhood.
+  intros V ? ?. apply NNPP; intro. contradict H3. exists U V; auto.
+  apply Extensionality_Ensembles; split; auto with sets. intros z ?.
+  contradict H8. exists z; trivial.
 Qed.
 
-Lemma net_limit_uniqueness_impl_Hausdorff:
-  forall X:TopologicalSpace,
-  (forall (I:DirectedSet) (x:Net I X), uniqueness (net_limit x)) ->
-  Hausdorff X.
+Corollary filter_limit_uniqueness_impl_hausdorff :
+  FilterLimitsUnique → Hausdorff.
 Proof.
-intros.
-apply net_limit_is_unique_cluster_point_impl_Hausdorff.
-intros.
-pose proof (net_cluster_point_impl_subnet_converges _ _ _ _ H1).
-destruct H2 as [J [x' [? ?]]].
-destruct (H0 Full_set).
-apply open_full.
-constructor.
-exists; exact x1.
-assert (net_limit x' x0).
-apply subnet_limit with _ x; trivial.
-unfold uniqueness in H.
-apply H with _ x'; trivial.
+eauto using filter_limit_is_unique_cluster_point_impl_hausdorff
+  with typeclass_instances.
 Qed.
 
-End Hausdorff_and_nets.
+Require Import FiltersAndNets.
+
+Global Instance filter_limit_uniqueness_impl_net_limit_uniqueness :
+  FilterLimitsUnique → NetLimitsUnique.
+Proof.
+intros ? I ? ? x x0 x1 ? ?. assert (inhabited I).
++ destruct (H4 Full_set); eauto. exists Full_set; auto with sets.
+  - apply open_full.
+  - constructor.
++ rewrite <- net_to_filter_limits in H4, H5.
+  red in H1. unfold uniqueness in H1. eauto using net_to_filter_filter.
+Qed.
+
+Lemma net_limit_uniqueness_impl_filter_limit_uniqueness :
+  NetLimitsUnique → FilterLimitsUnique.
+Proof.
+intros ? F ? x y ? ?. red in H1. unfold uniqueness in H1.
+rewrite <- filter_to_net_limits in H3, H4; eauto using filter_to_net_DS_DS.
+Qed.
+
+Corollary net_limit_uniqueness_impl_Hausdorff :
+  NetLimitsUnique → Hausdorff.
+Proof.
+auto using net_limit_uniqueness_impl_filter_limit_uniqueness,
+  filter_limit_uniqueness_impl_hausdorff.
+Qed.
+  
+Global Instance filter_liucs_impl_net_liucs :
+  FilterLimitIsUniqueClusterPoint → NetLimitIsUniqueClusterPoint.
+Proof.
+intros ? I ? ? x x0 ? x1 ?. assert (inhabited I).
++ destruct (H4 Full_set); eauto. exists Full_set; auto with sets.
+  - apply open_full.
+  - constructor.
++ rewrite <- net_to_filter_limits in H4.
+  rewrite <- net_to_filter_cluster_points in H5.
+  red in H1. eauto using net_to_filter_filter.
+Qed.
+
+Lemma net_liucs_impl_filter_liucs :
+  NetLimitIsUniqueClusterPoint → FilterLimitIsUniqueClusterPoint.
+Proof.
+intros ? F ? x ? y ?. red in H1.
+rewrite <- filter_to_net_limits in H3; trivial.
+rewrite <- filter_to_net_cluster_points in H4; trivial.
+eauto using filter_to_net_DS_DS.
+Qed.
+
+Corollary net_limit_is_unique_cluster_point_impl_Hausdorff :
+  NetLimitIsUniqueClusterPoint → Hausdorff.
+Proof.
+auto using net_liucs_impl_filter_liucs, 
+  filter_limit_is_unique_cluster_point_impl_hausdorff.
+Qed.
+
+End Hausdorff_and_limits.
+
+End sep_axioms.

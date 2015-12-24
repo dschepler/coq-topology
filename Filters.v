@@ -180,6 +180,22 @@ constructor.
 + intros. destruct H. auto.
 Qed.
 
+Lemma filter_sum_l : F ⊆ filter_sum.
+Proof.
+intros S ?. replace S with (S ∩ Full_set).
++ constructor; trivial. apply filter_full.
++ apply Extensionality_Ensembles; split; auto with sets.
+  intros x ?. constructor; auto with sets. constructor.
+Qed.
+
+Lemma filter_sum_r : G ⊆ filter_sum.
+Proof.
+intros S ?. replace S with (Full_set ∩ S).
++ constructor; trivial. apply filter_full.
++ apply Extensionality_Ensembles; split; auto with sets.
+  intros x ?. constructor; auto with sets. constructor.
+Qed.
+
 End filter_sum.
 
 Section filter_add.

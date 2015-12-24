@@ -114,7 +114,7 @@ Section interior_closure_relations.
 
 Context `{TopologicalSpace X}.
 
-Instance interior_increasing : Proper (Included ++> Included) interior.
+Global Instance interior_increasing : Proper (Included ++> Included) interior.
 Proof.
 intros S T ?. apply interior_maximal.
 + apply interior_open.
@@ -154,7 +154,7 @@ intros. apply Extensionality_Ensembles; split.
   - f_equiv. red. apply closure_inflationary.
 Qed.
 
-Instance closure_increasing : Proper (Included ++> Included) closure.
+Global Instance closure_increasing : Proper (Included ++> Included) closure.
 Proof.
 intros S T ?. apply closure_minimal.
 + apply closure_closed.
