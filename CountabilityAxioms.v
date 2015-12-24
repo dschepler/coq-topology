@@ -2,126 +2,115 @@ Require Export TopologicalSpaces.
 Require Export CountableTypes.
 Require Export NeighborhoodBases.
 Require Import EnsemblesSpec.
+Require Import EnsemblesUtf8.
 
-Definition first_countable (X:TopologicalSpace) : Prop :=
-  forall x:point_set X, exists NBx:Family (point_set X),
-    neighborhood_basis NBx x /\ Countable NBx.
+Section countability_axioms.
 
-Lemma first_countable_open_neighborhood_bases:
-  forall X:TopologicalSpace, first_countable X ->
-    forall x:point_set X, exists NBx:Family (point_set X),
-      open_neighborhood_basis NBx x /\ Countable NBx.
+Context (X:Type) `{TopologicalSpace X}.
+
+Inductive HasCountableNeighborhoodBasis (x:X) : Prop :=
+| has_countable_neighborhood_basis : ∀ NBx : Family X,
+  neighborhood_basis NBx x → Countable NBx → HasCountableNeighborhoodBasis x.
+Existing Class HasCountableNeighborhoodBasis.
+
+Inductive HasCountableOpenNeighborhoodBasis (x:X) : Prop :=
+| has_countable_open_neighborhood_basis : ∀ NBx : Family X,
+  open_neighborhood_basis NBx x → Countable NBx →
+  HasCountableOpenNeighborhoodBasis x.
+Existing Class HasCountableOpenNeighborhoodBasis.
+
+Class FirstCountable : Prop :=
+| FirstCountable_CtblNhdBasis :> ∀ x:X, HasCountableNeighborhoodBasis x.
+
+Global Instance has_ctbl_nhd_basis_impl_has_ctbl_open_nhd_basis :
+  ∀ x:X, HasCountableNeighborhoodBasis x →
+         HasCountableOpenNeighborhoodBasis x.
 Proof.
-intros.
-destruct (H x) as [NBx [? ?]].
-exists (@Im (Ensemble (point_set X)) (Ensemble (point_set X)) NBx (@interior X)).
-split.
-constructor.
-intros.
-destruct H2 as [U].
-split.
-rewrite H3; apply interior_open.
-rewrite H3; apply neighborhood_interior.
-apply H0; trivial.
-intros.
-destruct H0.
-destruct (neighborhood_basis_cond U) as [N].
-apply open_neighborhood_is_neighborhood; trivial.
-destruct H0.
-exists (interior N).
-split.
-exists N; trivial.
-pose proof (interior_deflationary N).
-auto with sets.
-
-apply countable_img; trivial.
+intros x [NBx ? ?]. exists (Im NBx interior).
++ constructor. intros ? [N ? ? ?]. subst. assert (neighborhood N x).
+  - eapply @neighborhood_basis_elements.
+    * eexact H1.
+    * eexact H3.
+  - constructor.
+    * apply interior_open.
+    * rewrite <- neighborhood_interior_equiv. trivial.
+  - intros U ?. destruct (@neighborhood_basis_cond _ _ _ _ H1 U).
+    * auto using open_neighborhood_is_neighborhood.
+    * exists (interior N).
+      { exists N; eauto. }
+      { rewrite interior_deflationary. trivial. }
++ apply countable_img; trivial.
 Qed.
 
 Require Export Nets.
 
-Lemma first_countable_sequence_closure:
-  forall (X:TopologicalSpace) (S:Ensemble (point_set X)) (x:point_set X),
-  first_countable X -> In (closure S) x ->
-  exists y:Net nat_DS X, (forall n:nat, In S (y n)) /\
-                         net_limit y x.
+Inductive limit_of_sequence_contained_in (x0 : X) (S : Ensemble X) : Prop :=
+| intro_limit_of_sequence_contained_in : ∀ x : nat → X,
+  (∀ n:nat, x n ∈ S) → net_limit x x0 →
+  limit_of_sequence_contained_in x0 S.
+
+Lemma first_countable_sequence_closure : ∀ x0 : X,
+  HasCountableOpenNeighborhoodBasis x0 → ∀ S : Ensemble X, x0 ∈ closure S →
+  limit_of_sequence_contained_in x0 S.
 Proof.
-intros.
-destruct (first_countable_open_neighborhood_bases _ H x) as [NB []].
-destruct H2 as [g].
-pose (U (n:nat) := IndexedIntersection
-  (fun x: {x:{x:Ensemble (point_set X) | In NB x} | (g x < n)%nat} =>
-     proj1_sig (proj1_sig x))).
-assert (forall n:nat, open (U n)).
-intros.
-apply open_finite_indexed_intersection.
-apply inj_finite with _ (fun x:{x:{x:Ensemble (point_set X) | In NB x}
-                           | (g x < n)%nat} =>
-  exist (fun m:nat => (m<n)%nat) (g (proj1_sig x)) (proj2_sig x)).
-Require Import InfiniteTypes.
-apply finite_nat_initial_segment.
-red.
-intros [[x0]] [[y0]] ?.
-simpl in H3.
-Require Import Proj1SigInjective.
-apply subset_eq_compatT.
-apply subset_eq_compatT.
-injection H3; intros.
-apply H2 in H4.
-injection H4; trivial.
-intros; apply classic.
-intros.
-destruct a as [[x0]].
-simpl.
-Opaque In. apply H1; trivial. Transparent In.
-
-Require Import ClassicalChoice.
-destruct (choice (fun (n:nat) (x:point_set X) => In (U n) x /\
-                                                 In S x)) as [y].
-intros n.
-destruct (closure_impl_meets_every_open_neighborhood _ _ _ H0 (U n))
-  as [y]; trivial.
-constructor; trivial.
-destruct a as [[x0]].
-simpl.
-apply H1; trivial.
-exists y; destruct H4; split; trivial.
-exists y.
-split.
-apply H4.
-
-red; intros V ? ?.
-destruct H1.
-destruct (open_neighborhood_basis_cond V) as [W []].
-split; trivial.
-pose (a := (exist _ W H1 : {x:Ensemble (point_set X)|In NB x})).
-exists (Datatypes.S (g a)).
-intros.
-simpl in j.
-simpl in H8.
-apply H7.
-assert (Included (U j) W).
-red; intros.
-destruct H9.
-exact (H9 (exist _ a H8)).
-apply H9.
-apply H4.
+intros. destruct H1 as [NB]. destruct H3 as [g].
+set (U (n : nat) := ⋂ [x : {x : {x : Ensemble X | x ∈ NB} | (g x < n)%nat }]
+  (proj1_sig (proj1_sig x))).
+assert (∀ n:nat, open (U n)).
++ intros. apply open_finite_indexed_intersection; auto.
+  - apply inj_finite with _
+    (fun x:{x:{x:Ensemble X | x ∈ NB} | (g x < n)%nat} =>
+     exist (fun m:nat => (m<n)%nat) (g (proj1_sig x)) (proj2_sig x)).
+    * Require Import InfiniteTypes. apply finite_nat_initial_segment.
+    * intros [ [x1] ] [ [y1] ] ?. simpl in H4.
+      Require Import Proj1SigInjective. apply proj1_sig_injective; simpl.
+      apply proj1_sig_injective; simpl.
+      apply f_equal with (f := @proj1_sig _ (fun m => (m < n)%nat)) in H4.
+      simpl in H4. apply H3 in H4.
+      apply f_equal with (f := @proj1_sig _ (fun x => x ∈ NB)) in H4.
+      simpl in H4. assumption.
+    * intros. apply classic.
+  - intros [ [? ?] ? ]. simpl.
+    destruct (@open_neighborhood_basis_elements _ _ _ _ H1 _ i).
+    trivial.
++ assert (∀ n:nat, x0 ∈ U n).
+  - constructor. intros [ [? ?] ? ]. simpl.
+    destruct (@open_neighborhood_basis_elements _ _ _ _ H1 _ i). trivial.
+  - Require Import ClassicalChoice.
+    destruct (choice (fun (n:nat) (x:X) => x ∈ S ∩ U n)).
+    * rewrite closure_equiv_meets_every_open_neighborhood in H2. intro n.
+      destruct (H2 (U n) (H4 n) (H5 n)). eauto.
+    * exists x.
+      { intros. destruct (H6 n). trivial. }
+      { intros V [N ? ? ?].
+        destruct (@open_neighborhood_basis_cond _ _ _ _ H1 N).
+        { constructor; trivial. }
+        { do 3 red in H10. set (N1 := exist (fun x => x ∈ NB) N0 H10).
+          exists (Coq.Init.Datatypes.S (g N1)). intros. destruct (H6 i).
+          rewrite <- H9. rewrite <- H11. destruct H14.
+          pose proof (H14 (exist _ N1 H12)). simpl in H15. assumption. }
+      }
 Qed.
 
-Inductive separable (X:TopologicalSpace) : Prop :=
-  | intro_dense_ctbl: forall S:Ensemble (point_set X),
-    Countable S -> dense S -> separable X.
+Inductive Separable : Prop :=
+| has_dense_ctbl_subset: ∀ S:Ensemble X,
+    Countable S → dense S → Separable.
+Existing Class Separable.
 
-Definition Lindelof (X:TopologicalSpace) : Prop :=
-  forall cover:Family (point_set X),
-    (forall U:Ensemble (point_set X),
-       In cover U -> open U) ->
-    FamilyUnion cover = Full_set ->
-  exists subcover:Family (point_set X), Included subcover cover /\
-     Countable subcover /\ FamilyUnion subcover = Full_set.
+Inductive has_countable_subcover (C : Family X) : Prop :=
+| has_countable_subcover_intro : ∀ C' : Family X,
+  C' ⊆ C → ⋃ C' = Full_set → Countable C' →
+  has_countable_subcover C.
 
-Inductive second_countable (X:TopologicalSpace) : Prop :=
-  | intro_ctbl_basis: forall B:Family (point_set X),
-    open_basis B -> Countable B -> second_countable X.
+Class Lindelof : Prop :=
+| open_cover_has_countable_subcover : ∀ C : Family X,
+  (∀ U:Ensemble X, U ∈ C → open U) → ⋃ C = Full_set →
+  has_countable_subcover C.
+
+Inductive SecondCountable : Prop :=
+| has_ctbl_basis : ∀ B : Family X, open_basis B → Countable B →
+  SecondCountable.
+Existing Class SecondCountable.
 
 Lemma second_countable_impl_first_countable:
   forall X:TopologicalSpace, second_countable X -> first_countable X.
